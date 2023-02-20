@@ -127,9 +127,9 @@ def pytest_addoption(parser):
     s_str = s_str + cr + " " + c3 + "command-line options for pytest" + cr
     parser = parser.getgroup("SeleniumBase", s_str)
     parser.addoption(
-        "--browser",
+        "--browser-selenium",
         action="store",
-        dest="browser",
+        dest="use_chrome",
         type=str.lower,
         choices=constants.ValidBrowsers.valid_browsers,
         default=constants.Browser.GOOGLE_CHROME,
@@ -632,7 +632,7 @@ def pytest_addoption(parser):
                 but is slower than the standard headless mode.""",
     )
     parser.addoption(
-        "--headed",
+        # "--headed",
         "--gui",
         action="store_true",
         dest="headed",
@@ -710,7 +710,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--slow_mode",
         "--slow-mode",
-        "--slowmo",
+        # "--slowmo",
         "--slow",
         action="store_true",
         dest="slow_mode",
@@ -1115,7 +1115,7 @@ def pytest_addoption(parser):
                 (Overrides the "window-size" option if used.)""",
     )
     parser.addoption(
-        "--screenshot",
+        # "--screenshot",
         "--save_screenshot",
         "--save-screenshot",
         "--ss",
