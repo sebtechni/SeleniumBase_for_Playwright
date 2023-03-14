@@ -96,7 +96,7 @@ DISABLE_CSP_ON_FIREFOX = True
 # If False, each website's default Content Security Policy will be used.
 # (A website's CSP may prevent SeleniumBase from loading custom JavaScript.)
 # You can also disable the CSP on the command line by using "--disable_csp".
-DISABLE_CSP_ON_CHROME = False
+DISABLE_CSP_ON_CHROME = True
 
 # If True, an Exception is raised immediately for invalid proxy string syntax.
 # If False, a Warning will appear after the test, with no proxy server used.
