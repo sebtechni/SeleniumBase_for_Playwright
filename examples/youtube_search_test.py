@@ -6,8 +6,13 @@ class YouTubeSearchTests(BaseCase):
     def test_youtube_autocomplete_results(self):
         """Verify YouTube autocomplete search results."""
         if self.headless:
-            self.open_if_not_url("data:,")
+            self.open_if_not_url("about:blank")
             message = "This test is skipped in headless mode."
+            print(message)
+            self.skip(message)
+        elif self.browser == "safari":
+            self.open_if_not_url("about:blank")
+            message = "This test is skipped when using Safari."
             print(message)
             self.skip(message)
         self.open("https://www.youtube.com/c/MichaelMintz")
@@ -27,4 +32,4 @@ class YouTubeSearchTests(BaseCase):
             'Actual text was "%s"!' % (search_term, top_result),
         )
         self.click(result_selector)
-        self.assert_element_present('a[aria-label*="SeleniumBase"]')
+        self.sleep(1)

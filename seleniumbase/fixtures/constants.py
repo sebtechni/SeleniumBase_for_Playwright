@@ -1,4 +1,4 @@
-"""SeleniumBase constants are stored in this file."""
+"""SeleniumBase constants"""
 from seleniumbase.core import encoded_images
 
 
@@ -9,15 +9,24 @@ class Environment:
     STAGING = "staging"
     DEVELOP = "develop"
     PRODUCTION = "production"
+    PERFORMANCE = "performance"
+    REPLICA = "replica"
+    FEDRAMP = "fedramp"
     OFFLINE = "offline"
     ONLINE = "online"
     MASTER = "master"
     REMOTE = "remote"
+    LEGACY = "legacy"
     LOCAL = "local"
     ALPHA = "alpha"
     BETA = "beta"
+    DEMO = "demo"
+    GDPR = "gdpr"
     MAIN = "main"
     TEST = "test"
+    GOV = "gov"
+    NEW = "new"
+    OLD = "old"
     UAT = "uat"
 
 
@@ -28,17 +37,33 @@ class ValidEnvs:
         "staging",
         "develop",
         "production",
+        "performance",
+        "replica",
+        "fedramp",
         "offline",
         "online",
         "master",
         "remote",
+        "legacy",
         "local",
         "alpha",
         "beta",
+        "demo",
+        "gdpr",
         "main",
         "test",
+        "gov",
+        "new",
+        "old",
         "uat",
     ]
+
+
+class PatchPy311:
+    # Now that unittest is "patched/fixed" in Python 3.11 and up,
+    # this second patch might not be needed to fix error-handling.
+    # Enabling this might slow things slightly to fix some things.
+    PATCH = False
 
 
 class PageLoadStrategy:
@@ -49,8 +74,21 @@ class PageLoadStrategy:
 
 
 class Files:
+    # This is a special downloads folder for files downloaded by tests.
+    # The "downloaded_files" folder is DELETED when starting new tests.
+    # Add "--archive-downloads" to save a copy in "archived_files".
+    # (These folder names should NOT be changed.)
     DOWNLOADS_FOLDER = "downloaded_files"
     ARCHIVED_DOWNLOADS_FOLDER = "archived_files"
+
+
+class Logs:
+    # This is where log files from the latest run get saved.
+    # The "latest_logs" folder is DELETED when starting new tests.
+    # Add "--archive-logs" to save a copy of logs in "archived_logs".
+    # (These folder names should NOT be changed.)
+    LATEST = "latest_logs"
+    SAVED = "archived_logs"
 
 
 class Presentations:
@@ -124,7 +162,8 @@ class MultiBrowser:
     DRIVER_FIXING_LOCK = Files.DOWNLOADS_FOLDER + "/driver_fixing.lock"
     DRIVER_REPAIRED = Files.DOWNLOADS_FOLDER + "/driver_fixed.lock"
     CERT_FIXING_LOCK = Files.DOWNLOADS_FOLDER + "/cert_fixing.lock"
-    DOWNLOAD_FILE_LOCK = Files.DOWNLOADS_FOLDER + "/download_file.lock"
+    DOWNLOAD_FILE_LOCK = Files.DOWNLOADS_FOLDER + "/downloading.lock"
+    FILE_IO_LOCK = Files.DOWNLOADS_FOLDER + "/file_io.lock"
 
 
 class SavedCookies:
@@ -208,7 +247,7 @@ class PrettifyJS:
 class Reveal:
     LIB = "https://cdn.jsdelivr.net/npm/reveal.js"
     VER = "3.8.0"
-    MIN_CSS = "%s@%s/css/reveal.css" % (LIB, VER)
+    MIN_CSS = "%s@%s/css/reveal.min.css" % (LIB, VER)
     SERIF_MIN_CSS = "%s@%s/css/theme/serif.min.css" % (LIB, VER)
     WHITE_MIN_CSS = "%s@%s/css/theme/white.min.css" % (LIB, VER)
     BLACK_MIN_CSS = "%s@%s/css/theme/black.min.css" % (LIB, VER)
@@ -240,7 +279,8 @@ class BootstrapTour:
     LIB = "https://cdnjs.cloudflare.com/ajax/libs/bootstrap-tour"
     VER = "0.12.0"
     MIN_CSS = "%s/%s/css/bootstrap-tour-standalone.min.css" % (LIB, VER)
-    MIN_JS = "%s/%s/js/bootstrap-tour-standalone.min.js" % (LIB, VER)
+    # MIN_JS = "%s/%s/js/bootstrap-tour-standalone.min.js" % (LIB, VER)
+    MIN_JS = "https://seleniumbase.github.io/cdn/js/bootstraptour.min.js"
 
 
 class DriverJS:
@@ -308,13 +348,29 @@ class SeleniumWire:
     VER = "5.1.0"
 
 
+class Mobile:
+    # Default values for mobile settings
+    WIDTH = 390
+    HEIGHT = 715
+    RATIO = 3
+    AGENT = (
+        "Mozilla/5.0 (Linux; Android 13; Pixel 7 XL "
+        "Build/SP2A.220505.006.A1; wv) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 "
+        "Chrome/110.0.5028.105 Mobile Safari/537.36"
+    )
+
+
+class UC:
+    RECONNECT_TIME = 2.27  # Seconds
+
+
 class ValidBrowsers:
     valid_browsers = [
         "chrome",
         "edge",
         "firefox",
         "ie",
-        "opera",
         "safari",
         "remote",
     ]
@@ -326,9 +382,14 @@ class ValidBinaries:
         "google-chrome-stable",
         "chrome",
         "chromium",
+        "chromium-browser",
         "google-chrome-beta",
         "google-chrome-dev",
-        "chromium-browser",
+        "google-chrome-unstable",
+        "brave-browser",
+        "brave-browser-stable",
+        "opera",
+        "opera-stable",
     ]
     valid_edge_binaries_on_linux = [
         "microsoft-edge",
@@ -339,6 +400,9 @@ class ValidBinaries:
     valid_chrome_binaries_on_macos = [
         "Google Chrome",
         "Chromium",
+        "Google Chrome for Testing",
+        "Brave Browser",
+        "Opera",
     ]
     valid_edge_binaries_on_macos = [
         "Microsoft Edge",
@@ -346,6 +410,8 @@ class ValidBinaries:
     valid_chrome_binaries_on_windows = [
         "chrome.exe",
         "chromium.exe",
+        "brave.exe",
+        "opera.exe",
     ]
     valid_edge_binaries_on_windows = [
         "msedge.exe",
@@ -357,7 +423,6 @@ class Browser:
     EDGE = "edge"
     FIREFOX = "firefox"
     INTERNET_EXPLORER = "ie"
-    OPERA = "opera"
     SAFARI = "safari"
     REMOTE = "remote"
 
@@ -366,7 +431,6 @@ class Browser:
         "edge": None,
         "firefox": None,
         "ie": None,
-        "opera": None,
         "safari": None,
         "remote": None,
     }
@@ -376,7 +440,6 @@ class Browser:
         "edge": None,
         "firefox": None,
         "ie": None,
-        "opera": None,
         "safari": None,
         "remote": None,
     }

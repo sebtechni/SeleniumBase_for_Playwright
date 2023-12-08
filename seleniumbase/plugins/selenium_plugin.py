@@ -1,19 +1,15 @@
-"""The Nosetest plugin for setting Selenium test configuration."""
+"""Selenium Plugin for SeleniumBase tests that run with pynose / nosetests"""
 import sys
 from nose.plugins import Plugin
 from seleniumbase import config as sb_config
 from seleniumbase.config import settings
 from seleniumbase.core import proxy_helper
 from seleniumbase.fixtures import constants
-
-is_windows = False
-if sys.platform in ["win32", "win64", "x64"]:
-    is_windows = True
+from seleniumbase.fixtures import shared_utils
 
 
 class SeleniumBrowser(Plugin):
-    """
-    This plugin adds the following command-line options to nosetests:
+    """This plugin adds the following command-line options to pynose:
     --browser=BROWSER  (The web browser to use. Default: "chrome".)
     --chrome  (Shortcut for "--browser=chrome". Default.)
     --edge  (Shortcut for "--browser=edge".)
@@ -25,11 +21,13 @@ class SeleniumBrowser(Plugin):
     --port=PORT  (The Selenium Grid port used by the test server.)
     --cap-file=FILE  (The web browser's desired capabilities to use.)
     --cap-string=STRING  (The web browser's desired capabilities to use.)
-    --proxy=SERVER:PORT  (Connect to a proxy server:port for tests.)
-    --proxy=USERNAME:PASSWORD@SERVER:PORT  (Use authenticated proxy server.)
+    --proxy=SERVER:PORT  (Connect to a proxy server:port as tests are running)
+    --proxy=USERNAME:PASSWORD@SERVER:PORT  (Use an authenticated proxy server)
     --proxy-bypass-list=STRING (";"-separated hosts to bypass, Eg "*.foo.com")
     --proxy-pac-url=URL  (Connect to a proxy server using a PAC_URL.pac file.)
     --proxy-pac-url=USERNAME:PASSWORD@URL  (Authenticated proxy with PAC URL.)
+    --proxy-driver  (If a driver download is needed, will use: --proxy=PROXY.)
+    --multi-proxy  (Allow multiple authenticated proxies when multi-threaded.)
     --agent=STRING  (Modify the web browser's User-Agent string.)
     --mobile  (Use the mobile device emulator while running tests.)
     --metrics=STRING  (Set mobile metrics: "CSSWidth,CSSHeight,PixelRatio".)
@@ -39,6 +37,7 @@ class SeleniumBrowser(Plugin):
     --extension-zip=ZIP  (Load a Chrome Extension .zip|.crx, comma-separated.)
     --extension-dir=DIR  (Load a Chrome Extension directory, comma-separated.)
     --binary-location=PATH  (Set path of the Chromium browser binary to use.)
+    --driver-version=VER  (Set the chromedriver or uc_driver version to use.)
     --sjw  (Skip JS Waits for readyState to be "complete" or Angular to load.)
     --pls=PLS  (Set pageLoadStrategy on Chrome: "normal", "eager", or "none".)
     --headless  (Run tests in headless mode. The default arg on Linux OS.)
@@ -56,6 +55,7 @@ class SeleniumBrowser(Plugin):
     --message-duration=SECONDS  (The time length for Messenger alerts.)
     --check-js  (Check for JavaScript errors after page loads.)
     --ad-block  (Block some types of display ads from loading.)
+    --host-resolver-rules=RULES  (Set host-resolver-rules, comma-separated.)
     --block-images  (Block images from loading during tests.)
     --do-not-track  (Indicate to websites that you don't want to be tracked.)
     --verify-delay=SECONDS  (The delay before MasterQA verification checks.)
@@ -70,12 +70,13 @@ class SeleniumBrowser(Plugin):
     --enable-sync  (Enable "Chrome Sync" on websites.)
     --uc | --undetected  (Use undetected-chromedriver to evade bot-detection.)
     --uc-cdp-events  (Capture CDP events when running in "--undetected" mode.)
+    --log-cdp  ("goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"})
     --remote-debug  (Sync to Chrome Remote Debugger chrome://inspect/#devices)
-    --final-debug  (Enter Debug Mode after each test ends. Don't use with CI!)
     --enable-3d-apis  (Enables WebGL and 3D APIs.)
-    --swiftshader  (Use Chrome's "--use-gl=swiftshader" feature.)
+    --swiftshader  (Chrome "--use-gl=angle" / "--use-angle=swiftshader-webgl")
     --incognito  (Enable Chrome's Incognito mode.)
     --guest  (Enable Chrome's Guest mode.)
+    --dark  (Enable Chrome's Dark mode.)
     --devtools  (Open Chrome's DevTools when the browser opens.)
     --disable-beforeunload  (Disable the "beforeunload" event on Chrome.)
     --window-size=WIDTH,HEIGHT  (Set the browser's starting window size.)
@@ -129,13 +130,6 @@ class SeleniumBrowser(Plugin):
             help="""Shortcut for --browser=ie""",
         )
         parser.addoption(
-            "--opera",
-            action="store_true",
-            dest="use_opera",
-            default=False,
-            help="""Shortcut for --browser=opera""",
-        )
-        parser.addoption(
             "--safari",
             action="store_true",
             dest="use_safari",
@@ -149,8 +143,7 @@ class SeleniumBrowser(Plugin):
             dest="cap_file",
             default=None,
             help="""The file that stores browser desired capabilities
-                    for BrowserStack, LambdaTest, Sauce Labs,
-                    and other remote web drivers to use.""",
+                    for BrowserStack, Sauce Labs, or other grids.""",
         )
         parser.addoption(
             "--cap_string",
@@ -158,8 +151,7 @@ class SeleniumBrowser(Plugin):
             dest="cap_string",
             default=None,
             help="""The string that stores browser desired capabilities
-                    for BrowserStack, LambdaTest, Sauce Labs,
-                    and other remote web drivers to use.
+                    for BrowserStack, Sauce Labs, or other grids.
                     Enclose cap-string in single quotes.
                     Enclose parameter keys in double quotes.
                     Example: --cap-string='{"name":"test1","v":"42"}'""",
@@ -257,6 +249,25 @@ class SeleniumBrowser(Plugin):
                     Default: None.""",
         )
         parser.addoption(
+            "--proxy-driver",
+            "--proxy_driver",
+            action="store_true",
+            dest="proxy_driver",
+            default=False,
+            help="""If a driver download is needed for tests,
+                    uses proxy settings set via --proxy=PROXY.""",
+        )
+        parser.addoption(
+            "--multi-proxy",
+            "--multi_proxy",
+            action="store_true",
+            dest="multi_proxy",
+            default=False,
+            help="""If you need to run multi-threaded tests with
+                    multiple proxies that require authentication,
+                    set this to allow multiple configurations.""",
+        )
+        parser.addoption(
             "--agent",
             "--user-agent",
             "--user_agent",
@@ -287,7 +298,7 @@ class SeleniumBrowser(Plugin):
             help="""Designates the three device metrics of the mobile
                     emulator: CSS Width, CSS Height, and Pixel-Ratio.
                     Format: A comma-separated string with the 3 values.
-                    Example: "375,734,3"
+                    Examples: "375,734,5" or "411,731,3" or "390,715,3"
                     Default: None. (Will use default values if None)""",
         )
         parser.addoption(
@@ -362,6 +373,17 @@ class SeleniumBrowser(Plugin):
             default=None,
             help="""Sets the path of the Chromium browser binary to use.
                     Uses the default location if not os.path.exists(PATH)""",
+        )
+        parser.addoption(
+            "--driver_version",
+            "--driver-version",
+            action="store",
+            dest="driver_version",
+            default=None,
+            help="""Setting this overrides the default driver version,
+                    which is set to match the detected browser version.
+                    Major version only. Example: "--driver-version=114"
+                    (Only chromedriver and uc_driver are affected.)""",
         )
         parser.addoption(
             "--pls",
@@ -508,8 +530,8 @@ class SeleniumBrowser(Plugin):
             dest="message_duration",
             default=None,
             help="""Setting this overrides the default time that
-                    messenger notifications remain visible when reaching
-                    assert statements during Demo Mode.""",
+                    messenger notifications remain visible when
+                    reaching assert statements during Demo Mode.""",
         )
         parser.addoption(
             "--check_js",
@@ -531,6 +553,25 @@ class SeleniumBrowser(Plugin):
             default=False,
             help="""Using this makes WebDriver block display ads
                     that are defined in ad_block_list.AD_BLOCK_LIST.""",
+        )
+        parser.addoption(
+            "--host_resolver_rules",
+            "--host-resolver-rules",
+            action="store",
+            dest="host_resolver_rules",
+            default=None,
+            help="""Use this option to set "host-resolver-rules".
+                    This lets you re-map traffic from any domain.
+                    Eg. "MAP www.google-analytics.com 0.0.0.0".
+                    Eg. "MAP * ~NOTFOUND , EXCLUDE myproxy".
+                    Eg. "MAP * 0.0.0.0 , EXCLUDE 127.0.0.1".
+                    Eg. "MAP *.google.com myproxy".
+                    Find more examples on these pages:
+                    (https://www.electronjs.org/docs/
+                     latest/api/command-line-switches)
+                    (https://www.chromium.org/developers/
+                     design-documents/network-stack/socks-proxy/)
+                    Use comma-separation for multiple host rules.""",
         )
         parser.addoption(
             "--block_images",
@@ -710,7 +751,8 @@ class SeleniumBrowser(Plugin):
             action="store_true",
             dest="no_sandbox",
             default=False,
-            help="""Using this enables the "No Sandbox" feature.
+            help="""(DEPRECATED) - "--no-sandbox" is always used now.
+                    Using this enables the "No Sandbox" feature.
                     (This setting is now always enabled by default.)""",
         )
         parser.addoption(
@@ -719,8 +761,20 @@ class SeleniumBrowser(Plugin):
             action="store_true",
             dest="disable_gpu",
             default=False,
-            help="""Using this enables the "Disable GPU" feature.
-                    (This setting is now always enabled by default.)""",
+            help="""(DEPRECATED) - GPU is disabled if no swiftshader.
+                    Using this enables the "Disable GPU" feature.
+                    (GPU is disabled by default if swiftshader off.)""",
+        )
+        parser.addoption(
+            "--log_cdp",
+            "--log-cdp",
+            "--log_cdp_events",
+            "--log-cdp-events",
+            action="store_true",
+            dest="log_cdp_events",
+            default=None,
+            help="""Capture CDP events. Then you can print them.
+                    Eg. print(driver.get_log("performance"))""",
         )
         parser.addoption(
             "--remote_debug",
@@ -735,16 +789,6 @@ class SeleniumBrowser(Plugin):
                     chrome://inspect/#devices while tests are running.
                     The previous URL was at: http://localhost:9222/
                     Info: chromedevtools.github.io/devtools-protocol/""",
-        )
-        parser.addoption(
-            "--final-debug",
-            action="store_true",
-            dest="final_debug",
-            default=False,
-            help="""Enter Debug Mode at the end of each test.
-                    To enter Debug Mode only on failures, use "--pdb".
-                    If using both "--final-debug" and "--pdb" together,
-                    then Debug Mode will activate twice on failures.""",
         )
         parser.addoption(
             "--enable_3d_apis",
@@ -779,6 +823,15 @@ class SeleniumBrowser(Plugin):
             dest="guest_mode",
             default=False,
             help="""Using this enables Chrome's Guest mode.""",
+        )
+        parser.addoption(
+            "--dark",
+            "--dark_mode",
+            "--dark-mode",
+            action="store_true",
+            dest="dark_mode",
+            default=False,
+            help="""Using this enables Chrome's Dark mode.""",
         )
         parser.addoption(
             "--devtools",
@@ -918,10 +971,6 @@ class SeleniumBrowser(Plugin):
             browser_changes += 1
             browser_set = "firefox"
             browser_list.append("--browser=firefox")
-        if "--browser=opera" in sys_argv or "--browser opera" in sys_argv:
-            browser_changes += 1
-            browser_set = "opera"
-            browser_list.append("--browser=opera")
         if "--browser=safari" in sys_argv or "--browser safari" in sys_argv:
             browser_changes += 1
             browser_set = "safari"
@@ -955,11 +1004,6 @@ class SeleniumBrowser(Plugin):
             browser_text = "ie"
             sb_config._browser_shortcut = "ie"
             browser_list.append("--ie")
-        if "--opera" in sys_argv and not browser_set == "opera":
-            browser_changes += 1
-            browser_text = "opera"
-            sb_config._browser_shortcut = "opera"
-            browser_list.append("--opera")
         if "--safari" in sys_argv and not browser_set == "safari":
             browser_changes += 1
             browser_text = "safari"
@@ -1022,6 +1066,8 @@ class SeleniumBrowser(Plugin):
         test.test.cap_string = self.options.cap_string
         test.test.headless = self.options.headless
         test.test.headless2 = self.options.headless2
+        if test.test.headless and test.test.browser == "safari":
+            test.test.headless = False  # Safari doesn't use headless
         if test.test.headless2 and test.test.browser == "firefox":
             test.test.headless2 = False  # Only for Chromium browsers
             test.test.headless = True  # Firefox has regular headless
@@ -1044,6 +1090,7 @@ class SeleniumBrowser(Plugin):
         test.test.extension_zip = self.options.extension_zip
         test.test.extension_dir = self.options.extension_dir
         test.test.binary_location = self.options.binary_location
+        test.test.driver_version = self.options.driver_version
         test.test.page_load_strategy = self.options.page_load_strategy
         test.test.chromium_arg = self.options.chromium_arg
         test.test.firefox_arg = self.options.firefox_arg
@@ -1051,6 +1098,7 @@ class SeleniumBrowser(Plugin):
         test.test.proxy_string = self.options.proxy_string
         test.test.proxy_bypass_list = self.options.proxy_bypass_list
         test.test.proxy_pac_url = self.options.proxy_pac_url
+        test.test.multi_proxy = self.options.multi_proxy
         test.test.user_agent = self.options.user_agent
         test.test.mobile_emulator = self.options.mobile_emulator
         test.test.device_metrics = self.options.device_metrics
@@ -1062,6 +1110,7 @@ class SeleniumBrowser(Plugin):
         test.test.message_duration = self.options.message_duration
         test.test.js_checking_on = self.options.js_checking_on
         test.test.ad_block_on = self.options.ad_block_on
+        test.test.host_resolver_rules = self.options.host_resolver_rules
         test.test.block_images = self.options.block_images
         test.test.do_not_track = self.options.do_not_track
         test.test.verify_delay = self.options.verify_delay  # MasterQA
@@ -1089,6 +1138,7 @@ class SeleniumBrowser(Plugin):
         test.test.use_auto_ext = self.options.use_auto_ext
         test.test.undetectable = self.options.undetectable
         test.test.uc_cdp_events = self.options.uc_cdp_events
+        test.test.log_cdp_events = self.options.log_cdp_events
         if test.test.uc_cdp_events and not test.test.undetectable:
             test.test.undetectable = True
         test.test.uc_subprocess = self.options.uc_subprocess
@@ -1097,11 +1147,11 @@ class SeleniumBrowser(Plugin):
         test.test.no_sandbox = self.options.no_sandbox
         test.test.disable_gpu = self.options.disable_gpu
         test.test.remote_debug = self.options.remote_debug
-        test.test._final_debug = self.options.final_debug
         test.test.enable_3d_apis = self.options.enable_3d_apis
-        test.test.swiftshader = self.options.swiftshader
+        test.test._swiftshader = self.options.swiftshader
         test.test.incognito = self.options.incognito
         test.test.guest_mode = self.options.guest_mode
+        test.test.dark_mode = self.options.dark_mode
         test.test.devtools = self.options.devtools
         test.test._disable_beforeunload = self.options._disable_beforeunload
         test.test.window_size = self.options.window_size
@@ -1124,7 +1174,7 @@ class SeleniumBrowser(Plugin):
             if str(self.options.port) == "443":
                 test.test.protocol = "https"
         if (
-            "linux" in sys.platform
+            shared_utils.is_linux()
             and not self.options.headed
             and not self.options.headless
             and not self.options.headless2
@@ -1134,8 +1184,8 @@ class SeleniumBrowser(Plugin):
                 "(Linux uses --headless by default. "
                 "To override, use --headed / --gui. "
                 "For Xvfb mode instead, use --xvfb. "
-                "Or hide this info with --headless, "
-                "or by calling the new --headless2.)"
+                "Or you can hide this info by using "
+                "--headless / --headless2.)"
             )
             self.options.headless = True
             test.test.headless = True
@@ -1149,16 +1199,6 @@ class SeleniumBrowser(Plugin):
             )
             self.options.use_wire = False
             test.test.use_wire = False
-        if self.options.mobile_emulator and self.options.undetectable:
-            print(
-                "\n"
-                "SeleniumBase doesn't support mixing --uc with --mobile.\n"
-                "(Only UC Mode without Mobile will be used for this run)\n"
-            )
-            self.options.mobile_emulator = False
-            test.test.mobile_emulator = False
-            self.options.user_agent = None
-            test.test.user_agent = None
         # Recorder Mode can still optimize scripts in --headless2 mode.
         if self.options.recorder_mode and self.options.headless:
             self.options.headless = False
@@ -1172,40 +1212,45 @@ class SeleniumBrowser(Plugin):
         sb_config.headless_active = False
         self.headless_active = False
         if (
-            self.options.headless
-            or self.options.headless2
-            or self.options.xvfb
+            shared_utils.is_linux()
+            and (not self.options.headed or self.options.xvfb)
         ):
+            width = settings.HEADLESS_START_WIDTH
+            height = settings.HEADLESS_START_HEIGHT
             try:
-                # from pyvirtualdisplay import Display  # Skip for own lib
                 from sbvirtualdisplay import Display
 
-                self._xvfb_display = Display(visible=0, size=(1440, 1880))
+                self._xvfb_display = Display(visible=0, size=(width, height))
                 self._xvfb_display.start()
                 sb_config._virtual_display = self._xvfb_display
                 self.headless_active = True
                 sb_config.headless_active = True
             except Exception:
-                # pyvirtualdisplay might not be necessary anymore because
-                # Chrome and Firefox now have built-in headless displays
                 pass
         sb_config._is_timeout_changed = False
         sb_config._SMALL_TIMEOUT = settings.SMALL_TIMEOUT
         sb_config._LARGE_TIMEOUT = settings.LARGE_TIMEOUT
         sb_config._context_of_runner = False  # Context Manager Compatibility
+        sb_config.mobile_emulator = self.options.mobile_emulator
+        sb_config.proxy_driver = self.options.proxy_driver
+        sb_config.multi_proxy = self.options.multi_proxy
         # The driver will be received later
         self.driver = None
         test.test.driver = self.driver
 
     def finalize(self, result):
         """This runs after all tests have completed with nosetests."""
-        proxy_helper.remove_proxy_zip_if_present()
+        if (
+            (hasattr(sb_config, "multi_proxy") and not sb_config.multi_proxy)
+            or not hasattr(sb_config, "multi_proxy")
+        ):
+            proxy_helper.remove_proxy_zip_if_present()
 
     def afterTest(self, test):
         try:
             # If the browser window is still open, close it now.
             if (
-                not is_windows
+                not shared_utils.is_windows()
                 or test.test.browser == "ie"
                 or self.driver.service.process
             ):

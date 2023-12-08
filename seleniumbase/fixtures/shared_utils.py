@@ -1,13 +1,15 @@
-"""Shared utility methods."""
-
-import subprocess
+"""Shared utility methods"""
+import os
+import platform
 import sys
-from seleniumbase.fixtures import constants
+import time
 from seleniumbase import config as sb_config
+from seleniumbase.fixtures import constants
 
 
 def pip_install(package, version=None):
     import fasteners
+    import subprocess
 
     pip_install_lock = fasteners.InterProcessLock(
         constants.PipInstall.LOCKFILE
@@ -24,17 +26,30 @@ def pip_install(package, version=None):
             )
 
 
+def is_arm_mac():
+    """(M1 / M2 Macs use the ARM processor)"""
+    return (
+        "darwin" in sys.platform
+        and (
+            "arm" in platform.processor().lower()
+            or "arm64" in platform.version().lower()
+        )
+    )
+
+
+def is_mac():
+    return "darwin" in sys.platform
+
+
+def is_linux():
+    return "linux" in sys.platform
+
+
 def is_windows():
-    platform = sys.platform
-    if "win32" in platform or "win64" in platform or "x64" in platform:
-        return True
-    else:
-        return False
+    return "win32" in sys.platform
 
 
 def get_terminal_width():
-    import os
-
     width = 80  # default
     try:
         width = os.get_terminal_size().columns
@@ -56,44 +71,55 @@ def format_exc(exception, message):
     from selenium.common.exceptions import NoSuchElementException
     from selenium.common.exceptions import NoSuchFrameException
     from selenium.common.exceptions import NoSuchWindowException
+    from seleniumbase.common.exceptions import LinkTextNotFoundException
     from seleniumbase.common.exceptions import NoSuchFileException
+    from seleniumbase.common.exceptions import NoSuchOptionException
     from seleniumbase.common.exceptions import TextNotVisibleException
+    from seleniumbase.common import exceptions
 
     if exception == Exception:
         exc = Exception
         return exc, message
     elif exception == ElementNotVisibleException:
-        exc = ElementNotVisibleException
+        exc = exceptions.ElementNotVisibleException
     elif exception == "ElementNotVisibleException":
-        exc = ElementNotVisibleException
+        exc = exceptions.ElementNotVisibleException
+    elif exception == LinkTextNotFoundException:
+        exc = exceptions.LinkTextNotFoundException
+    elif exception == "LinkTextNotFoundException":
+        exc = exceptions.LinkTextNotFoundException
     elif exception == NoSuchElementException:
-        exc = NoSuchElementException
+        exc = exceptions.NoSuchElementException
     elif exception == "NoSuchElementException":
-        exc = NoSuchElementException
+        exc = exceptions.NoSuchElementException
     elif exception == TextNotVisibleException:
-        exc = TextNotVisibleException
+        exc = exceptions.TextNotVisibleException
     elif exception == "TextNotVisibleException":
-        exc = TextNotVisibleException
+        exc = exceptions.TextNotVisibleException
     elif exception == NoAlertPresentException:
-        exc = NoAlertPresentException
+        exc = exceptions.NoAlertPresentException
     elif exception == "NoAlertPresentException":
-        exc = NoAlertPresentException
+        exc = exceptions.NoAlertPresentException
     elif exception == NoSuchAttributeException:
-        exc = NoSuchAttributeException
+        exc = exceptions.NoSuchAttributeException
     elif exception == "NoSuchAttributeException":
-        exc = NoSuchAttributeException
+        exc = exceptions.NoSuchAttributeException
     elif exception == NoSuchFrameException:
-        exc = NoSuchFrameException
+        exc = exceptions.NoSuchFrameException
     elif exception == "NoSuchFrameException":
-        exc = NoSuchFrameException
+        exc = exceptions.NoSuchFrameException
     elif exception == NoSuchWindowException:
-        exc = NoSuchWindowException
+        exc = exceptions.NoSuchWindowException
     elif exception == "NoSuchWindowException":
-        exc = NoSuchWindowException
+        exc = exceptions.NoSuchWindowException
     elif exception == NoSuchFileException:
-        exc = NoSuchFileException
+        exc = exceptions.NoSuchFileException
     elif exception == "NoSuchFileException":
-        exc = NoSuchFileException
+        exc = exceptions.NoSuchFileException
+    elif exception == NoSuchOptionException:
+        exc = exceptions.NoSuchOptionException
+    elif exception == "NoSuchOptionException":
+        exc = exceptions.NoSuchOptionException
     elif type(exception) is str:
         exc = Exception
         message = "%s: %s" % (exception, message)
@@ -102,6 +128,10 @@ def format_exc(exception, message):
         exc = Exception
         return exc, message
     message = _format_message(message)
+    try:
+        exc.message = message
+    except Exception:
+        pass
     return exc, message
 
 
@@ -122,8 +152,6 @@ def check_if_time_limit_exceeded():
         and sb_config.time_limit
         and not sb_config.recorder_mode
     ):
-        import time
-
         time_limit = sb_config.time_limit
         now_ms = int(time.time() * 1000)
         if now_ms > sb_config.start_time_ms + sb_config.time_limit_ms:

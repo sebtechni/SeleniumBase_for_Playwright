@@ -40,7 +40,7 @@ COMMANDS:
       download server  (Get Selenium Grid JAR file)
       grid-hub         [start|stop] [OPTIONS]
       grid-node        [start|stop] --hub=[HOST/IP]
- * (EXAMPLE: "sbase get chromedriver latest") *
+ * (EXAMPLE: "sbase get chromedriver") *
 
     Type "sbase help [COMMAND]" for specific command info.
     For info on all commands, type: "seleniumbase --help".
@@ -62,21 +62,18 @@ sbase install [DRIVER] [OPTIONS]
 sbase get chromedriver
 sbase get geckodriver
 sbase get edgedriver
-sbase get chromedriver 109
-sbase get chromedriver 109.0.5414.74
-sbase get chromedriver latest
-sbase get chromedriver latest-1  # (Latest minus one)
+sbase get chromedriver 114
+sbase get chromedriver 114.0.5735.90
+sbase get chromedriver stable
+sbase get chromedriver beta
 sbase get chromedriver -p
-sbase get chromedriver latest -p
 ```
 
 (Drivers:  ``chromedriver``, ``geckodriver``, ``edgedriver``,
-           ``iedriver``, ``operadriver``, ``uc_driver``)
+           ``iedriver``, ``uc_driver``)
 
-(Options:  ``latest`` or a specific driver version.
-           For chromedriver, you can also specify the major
-           version int, or ``latest-1`` for latest minus 1.
-           If none specified, installs the default version.
+(Options:  A specific driver version or major version integer.
+           If not set, the driver version matches the browser.
            ``-p`` / ``--path``: Also copy to "/usr/local/bin".)
 
 * Output:
@@ -113,16 +110,18 @@ that are available when using SeleniumBase.
 
 ```bash
 --browser=BROWSER  (The web browser to use. Default is "chrome")
+--edge / --firefox / --safari  (Shortcut for browser selection.)
 --headless  (Run tests headlessly. Default mode on Linux OS.)
 --demo  (Slow down and visually see test actions as they occur.)
 --slow  (Slow down the automation. Faster than using Demo Mode.)
---reuse-session / --rs  (Reuse browser session between tests.)
+--rs / --reuse-session  (Reuse browser session between tests.)
 --crumbs  (Clear all cookies between tests reusing a session.)
 --maximize  (Start tests with the web browser window maximized.)
 --dashboard  (Enable SeleniumBase\'s Dashboard at dashboard.html)
---uc  (Enable undetected-chromedriver to evade bot-detection.)
 --incognito  (Enable Chromium\'s Incognito mode.)
---guest  (Enable Chromium\'s Guest mode.)
+--guest  (Enable Chromium\'s Guest Mode.)
+--dark  (Enable Chromium\'s Dark Mode.)
+--uc  (Use undetected-chromedriver to evade detection.)
 -m=MARKER  (Run tests with the specified pytest marker.)
 -n=NUM  (Multithread the tests using that many threads.)
 -v  (Verbose mode. Print the full names of each test run.)
@@ -137,8 +136,11 @@ that are available when using SeleniumBase.
       |  return / r: Run until method returns. j: Jump to line. |
       | where / w: Show stack spot. u: Up stack. d: Down stack. |
       | longlist / ll: See code. dir(): List namespace objects. |
+--help / -h  (Display list of all available pytest options.)
 --final-debug  (Enter Final Debug Mode after each test ends.)
---recorder  (Record browser actions to generate test scripts.)
+--recorder / --rec  (Save browser actions as Python scripts.)
+--rec-behave / --rec-gherkin  (Save actions as Gherkin code.)
+--rec-print  (Display recorded scripts when they are created.)
 --save-screenshot  (Save a screenshot at the end of each test.)
 --archive-logs  (Archive old log files instead of deleting them.)
 --check-js  (Check for JavaScript errors after page loads.)
@@ -182,9 +184,10 @@ that are available when using SeleniumBase.
 -D crumbs  (Clear all cookies between tests reusing a session.)
 -D maximize  (Start tests with the web browser window maximized.)
 -D dashboard  (Enable SeleniumBase\'s Dashboard at dashboard.html)
--D uc  (Enable undetected-chromedriver to evade bot-detection.)
--D incognito  (Enable Chromium\'s Incognito mode.)
--D guest  (Enable Chromium\'s Guest mode.)
+-D incognito  (Enable Chromium\'s Incognito Mode.)
+-D guest  (Enable Chromium\'s Guest Mode.)
+-D dark  (Enable Chromium\'s Dark Mode.)
+-D uc  (Use undetected-chromedriver to evade detection.)
 --no-snippets / -q  (Quiet mode. Don\'t print snippets.)
 --dry-run / -d  (Dry run. Only show discovered tests.)
 --stop  (Stop running tests after the first failure is reached.)
@@ -195,6 +198,7 @@ that are available when using SeleniumBase.
       | where / w: Show stack spot. u: Up stack. d: Down stack. |
       | longlist / ll: See code. dir(): List namespace objects. |
 -D recorder  (Record browser actions to generate test scripts.)
+-D rec-print  (Display recorded scripts when they are created.)
 -D save-screenshot  (Save a screenshot at the end of each test.)
 -D archive-logs  (Archive old log files instead of deleting them.)
 -D check-js  (Check for JavaScript errors after page loads.)
@@ -345,8 +349,9 @@ sbase mkfile new_test.py
 
 * Options:
 
-``-b`` / ``--basic``  (Basic boilerplate / single-line test)
-``-r`` / ``--rec``  (adds Pdb+ breakpoint for Recorder Mode)
+`-b` / `--basic`  (Basic boilerplate / single-line test)
+`-r` / `--rec`  (adds Pdb+ breakpoint for Recorder Mode)
+``--url=URL``  (makes the test start on a specific page)
 
 * Language Options:
 
@@ -356,16 +361,25 @@ sbase mkfile new_test.py
 ``--ko`` / ``--Korean``     |    ``--pt`` / ``--Portuguese``
 ``--ru`` / ``--Russian``    |    ``--es`` / ``--Spanish``
 
+* Syntax Formats:
+
+``--bc`` / ``--basecase``      (BaseCase class inheritance)
+``--pf`` / ``--pytest-fixture``         (sb pytest fixture)
+``--cf`` / ``--class-fixture``  (class + sb pytest fixture)
+``--cm`` / ``--context-manager``       (SB context manager)
+``--dc`` / ``--driver-context``     (DriverContext manager)
+``--dm`` / ``--driver-manager``            (Driver manager)
+
 * Output:
 
-Creates a new SeleniumBase test file with boilerplate code.
+Creates a new SBase test file with boilerplate code.
 If the file already exists, an error is raised.
-By default, uses English mode and creates a
-boilerplate with the 5 most common SeleniumBase
-methods, which are "open", "type", "click",
-"assert_element", and "assert_text". If using the
-basic boilerplate option, only the "open" method
-is included.
+By default, uses English with BaseCase inheritance,
+and creates a boilerplate with common SeleniumBase
+methods: "open", "type", "click", "assert_element",
+and "assert_text". If using the basic boilerplate
+option, only the "open" method is included. Only the
+BaseCase format supports Languages or Recorder Mode.
 
 <h3>mkrec / record / codegen</h3>
 
@@ -612,11 +626,10 @@ sbase convert [WEBDRIVER_UNITTEST_FILE.py]
 
 * Output:
 
-Converts a Selenium IDE exported WebDriver unittest file
-into a SeleniumBase file. Adds ``_SB`` to the new
-file name while keeping the original file intact.
-Works with Katalon Recorder scripts.
-See [This ReadMe](https://seleniumbase.io/seleniumbase/utilities/selenium_ide/ReadMe/) for details.
+Converts a Selenium IDE exported WebDriver unittest
+file into a SeleniumBase file. Adds ``_SB`` to the
+new filename while keeping the original file intact.
+Works on both Selenium IDE & Katalon Recorder scripts.
 
 <h3>encrypt / obfuscate</h3>
 

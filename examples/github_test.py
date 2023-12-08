@@ -5,7 +5,7 @@ BaseCase.main(__name__, __file__)
 class GitHubTests(BaseCase):
     def test_github(self):
         if self.headless or self.page_load_strategy == "none":
-            self.open_if_not_url("data:,")
+            self.open_if_not_url("about:blank")
             message = "Unsupported mode for this test."
             print("\n  " + message)
             self.skip(message)
@@ -17,5 +17,5 @@ class GitHubTests(BaseCase):
         self.assert_element("div.repository-content")
         self.assert_text("SeleniumBase", "strong a")
         self.click('a[title="seleniumbase"]')
-        self.slow_click('a[title="fixtures"]')
-        self.assert_element('a[title="base_case.py"]')
+        self.slow_click('td[class*="large"] a[title="fixtures"]')
+        self.assert_element('td[class*="large"] a[title="base_case.py"]')

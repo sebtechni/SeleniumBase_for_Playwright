@@ -4,11 +4,17 @@ The SeleniumBase Driver as a Python Context Manager or a returnable object.
 
 The SeleniumBase Driver as a context manager:
 Usage --> ``with DriverContext() as driver:``
-Usage example -->
-    from seleniumbase import Driver
-    with DriverContext() as driver:
-        driver.get("https://google.com/ncr")
-    # The browser exits automatically after the "with" block ends.
+
+Example -->
+
+```
+from seleniumbase import DriverContext
+
+with DriverContext() as driver:
+    driver.get("https://google.com/ncr")
+```
+
+# (The browser exits automatically after the "with" block ends.)
 
 ###########################################################################
 # Above: The driver as a context manager. (Used with a "with" statement.) #
@@ -18,10 +24,15 @@ Usage example -->
 
 The SeleniumBase Driver as a returnable object:
 Usage --> ``driver = Driver()``
-Usage example -->
-    from seleniumbase import Driver
-    driver = Driver()
-    driver.get("https://google.com/ncr")
+
+Example -->
+
+```
+from seleniumbase import Driver
+
+driver = Driver()
+driver.get("https://google.com/ncr")
+```
 
 ###########################################################################
 """
@@ -41,7 +52,7 @@ class DriverContext():
                 hasattr(self, "driver")
                 and hasattr(self.driver, "quit")
                 and (
-                    sys.platform not in ["win32", "win64", "x64"]
+                    "win32" not in sys.platform
                     or self.driver.service.process
                 )
             ):
@@ -63,6 +74,7 @@ def Driver(
     proxy=None,  # Use proxy. Format: "SERVER:PORT" or "USER:PASS@SERVER:PORT".
     proxy_bypass_list=None,  # Skip proxy when using the listed domains.
     proxy_pac_url=None,  # Use PAC file. (Format: URL or USERNAME:PASSWORD@URL)
+    multi_proxy=False,  # Allow multiple proxies with auth when multi-threaded.
     agent=None,  # Modify the web browser's User-Agent string.
     cap_file=None,  # The desired capabilities to use with a Selenium Grid.
     cap_string=None,  # The desired capabilities to use with a Selenium Grid.
@@ -76,24 +88,28 @@ def Driver(
     undetectable=None,  # Use undetected-chromedriver to evade bot-detection.
     uc_cdp_events=None,  # Capture CDP events in undetected-chromedriver mode.
     uc_subprocess=None,  # Use undetected-chromedriver as a subprocess.
+    log_cdp_events=None,  # Capture {"performance": "ALL", "browser": "ALL"}
     no_sandbox=None,  # (DEPRECATED) - "--no-sandbox" is always used now.
-    disable_gpu=None,  # (DEPRECATED) - GPU is disabled if no "swiftshader".
+    disable_gpu=None,  # (DEPRECATED) - GPU is disabled if not "swiftshader".
     incognito=None,  # Enable Chromium's Incognito mode.
     guest_mode=None,  # Enable Chromium's Guest mode.
+    dark_mode=None,  # Enable Chromium's Dark mode.
     devtools=None,  # Open Chromium's DevTools when the browser opens.
     remote_debug=None,  # Enable Chrome's Debugger on "http://localhost:9222".
     enable_3d_apis=None,  # Enable WebGL and 3D APIs.
-    swiftshader=None,  # Use Chrome's "--use-gl=swiftshader" feature.
+    swiftshader=None,  # Chrome: --use-gl=angle / --use-angle=swiftshader-webgl
     ad_block_on=None,  # Block some types of display ads from loading.
+    host_resolver_rules=None,  # Set host-resolver-rules, comma-separated.
     block_images=None,  # Block images from loading during tests.
     do_not_track=None,  # Tell websites that you don't want to be tracked.
     chromium_arg=None,  # "ARG=N,ARG2" (Set Chromium args, ","-separated.)
     firefox_arg=None,  # "ARG=N,ARG2" (Set Firefox args, comma-separated.)
     firefox_pref=None,  # SET (Set Firefox PREFERENCE:VALUE set, ","-separated)
     user_data_dir=None,  # Set the Chrome user data directory to use.
-    extension_zip=None,  # Load a Chrome Extension .zip|.crx, comma-separated.)
-    extension_dir=None,  # Load a Chrome Extension directory, comma-separated.)
+    extension_zip=None,  # Load a Chrome Extension .zip|.crx, comma-separated.
+    extension_dir=None,  # Load a Chrome Extension directory, comma-separated.
     binary_location=None,  # Set path of the Chromium browser binary to use.
+    driver_version=None,  # Set the chromedriver or uc_driver version to use.
     page_load_strategy=None,  # Set Chrome PLS to "normal", "eager", or "none".
     use_wire=None,  # Use selenium-wire's webdriver over selenium webdriver.
     external_pdf=None,  # Set Chrome "plugins.always_open_pdf_externally":True.
@@ -106,12 +122,15 @@ def Driver(
     undetected=None,  # Shortcut / Duplicate of "undetectable".
     uc_cdp=None,  # Shortcut / Duplicate of "uc_cdp_events".
     uc_sub=None,  # Shortcut / Duplicate of "uc_subprocess".
+    log_cdp=None,  # Shortcut / Duplicate of "log_cdp_events".
     wire=None,  # Shortcut / Duplicate of "use_wire".
     pls=None,  # Shortcut / Duplicate of "page_load_strategy".
 ):
     from seleniumbase.fixtures import constants
+    from seleniumbase.fixtures import shared_utils
 
     sys_argv = sys.argv
+    arg_join = " ".join(sys_argv)
     browser_changes = 0
     browser_set = None
     browser_text = None
@@ -130,10 +149,6 @@ def Driver(
         browser_changes += 1
         browser_set = "firefox"
         browser_list.append("--browser=firefox")
-    if "--browser=opera" in sys_argv or "--browser opera" in sys_argv:
-        browser_changes += 1
-        browser_set = "opera"
-        browser_list.append("--browser=opera")
     if "--browser=safari" in sys_argv or "--browser safari" in sys_argv:
         browser_changes += 1
         browser_set = "safari"
@@ -163,10 +178,6 @@ def Driver(
         browser_changes += 1
         browser_text = "ie"
         browser_list.append("--ie")
-    if "--opera" in sys_argv and not browser_set == "opera":
-        browser_changes += 1
-        browser_text = "opera"
-        browser_list.append("--opera")
     if "--safari" in sys_argv and not browser_set == "safari":
         browser_changes += 1
         browser_text = "safari"
@@ -224,6 +235,11 @@ def Driver(
             guest_mode = True
         else:
             guest_mode = False
+    if dark_mode is None:
+        if "--dark" in sys_argv:
+            dark_mode = True
+        else:
+            dark_mode = False
     if devtools is None:
         if "--devtools" in sys_argv:
             devtools = True
@@ -238,6 +254,16 @@ def Driver(
             is_mobile = False
     test_id = "direct_driver"
     proxy_string = proxy
+    if proxy_string is None and "--proxy" in arg_join:
+        if "--proxy=" in arg_join:
+            proxy_string = arg_join.split("--proxy=")[1].split(" ")[0]
+        elif "--proxy " in arg_join:
+            proxy_string = arg_join.split("--proxy ")[1].split(" ")[0]
+        if proxy_string:
+            if proxy_string.startswith('"') and proxy_string.endswith('"'):
+                proxy_string = proxy_string[1:-1]
+            elif proxy_string.startswith("'") and proxy_string.endswith("'"):
+                proxy_string = proxy_string[1:-1]
     user_agent = agent
     recorder_mode = False
     if recorder_ext:
@@ -250,7 +276,7 @@ def Driver(
         recorder_mode = True
         recorder_ext = True
     if (
-        "linux" in sys.platform
+        shared_utils.is_linux()
         and not headed
         and not headless
         and not headless2
@@ -316,9 +342,33 @@ def Driver(
         uc_subprocess = True
     else:
         uc_subprocess = False
-    if undetectable and is_mobile:
-        is_mobile = False
-        user_agent = None
+    if uc_cdp_events or uc_cdp:
+        undetectable = True
+        uc_cdp_events = True
+    elif (
+        "--uc-cdp-events" in sys_argv
+        or "--uc_cdp_events" in sys_argv
+        or "--uc-cdp" in sys_argv
+        or "--uc_cdp" in sys_argv
+    ):
+        undetectable = True
+        uc_cdp_events = True
+    else:
+        uc_cdp_events = False
+    if log_cdp_events is None and log_cdp is None:
+        if (
+            "--log-cdp-events" in sys_argv
+            or "--log_cdp_events" in sys_argv
+            or "--log-cdp" in sys_argv
+            or "--log_cdp" in sys_argv
+        ):
+            log_cdp_events = True
+        else:
+            log_cdp_events = False
+    elif log_cdp_events or log_cdp:
+        log_cdp_events = True
+    else:
+        log_cdp_events = False
     if use_auto_ext is None:
         if "--use-auto-ext" in sys_argv:
             use_auto_ext = True
@@ -387,6 +437,24 @@ def Driver(
             ad_block_on = True
         else:
             ad_block_on = False
+    if host_resolver_rules is None:
+        if '--host-resolver-rules="' in arg_join:
+            host_resolver_rules = (
+                arg_join.split('--host-resolver-rules="')[1].split('"')[0]
+            )
+        elif '--host_resolver_rules="' in arg_join:
+            host_resolver_rules = (
+                arg_join.split("--host_resolver_rules=")[1].split('"')[0]
+            )
+    if driver_version is None:
+        if "--driver-version=" in arg_join:
+            driver_version = (
+                arg_join.split("--driver-version=")[1].split(" ")[0]
+            )
+        elif "--driver_version=" in arg_join:
+            driver_version = (
+                arg_join.split("--driver_version=")[1].split(" ")[0]
+            )
     browser_name = browser
 
     # Launch a web browser
@@ -403,6 +471,7 @@ def Driver(
         proxy_string=proxy_string,
         proxy_bypass_list=proxy_bypass_list,
         proxy_pac_url=proxy_pac_url,
+        multi_proxy=multi_proxy,
         user_agent=user_agent,
         cap_file=cap_file,
         cap_string=cap_string,
@@ -415,16 +484,19 @@ def Driver(
         undetectable=undetectable,
         uc_cdp_events=uc_cdp_events,
         uc_subprocess=uc_subprocess,
+        log_cdp_events=log_cdp_events,
         no_sandbox=no_sandbox,
         disable_gpu=disable_gpu,
         headless2=headless2,
         incognito=incognito,
         guest_mode=guest_mode,
+        dark_mode=dark_mode,
         devtools=devtools,
         remote_debug=remote_debug,
         enable_3d_apis=enable_3d_apis,
         swiftshader=swiftshader,
         ad_block_on=ad_block_on,
+        host_resolver_rules=host_resolver_rules,
         block_images=block_images,
         do_not_track=do_not_track,
         chromium_arg=chromium_arg,
@@ -434,6 +506,7 @@ def Driver(
         extension_zip=extension_zip,
         extension_dir=extension_dir,
         binary_location=binary_location,
+        driver_version=driver_version,
         page_load_strategy=page_load_strategy,
         use_wire=use_wire,
         external_pdf=external_pdf,

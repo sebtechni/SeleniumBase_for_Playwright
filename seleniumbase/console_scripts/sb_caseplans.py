@@ -27,13 +27,10 @@ if sys.version_info <= (3, 7):
         "\n* SBase Case Plans Generator requires Python 3.7 or newer!"
         "\n** You are currently using Python %s" % current_version
     )
+from seleniumbase.fixtures import shared_utils
 import tkinter as tk  # noqa: E402
 from tkinter import messagebox  # noqa: E402
 from tkinter.scrolledtext import ScrolledText  # noqa: E402
-
-is_windows = False
-if sys.platform in ["win32", "win64", "x64"]:
-    is_windows = True
 
 
 def set_colors(use_colors):
@@ -45,7 +42,13 @@ def set_colors(use_colors):
     c5 = ""
     cr = ""
     if use_colors:
-        colorama.init(autoreset=True)
+        if (
+            shared_utils.is_windows()
+            and hasattr(colorama, "just_fix_windows_console")
+        ):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c0 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
         c1 = colorama.Fore.BLUE + colorama.Back.LIGHTGREEN_EX
         c2 = colorama.Fore.RED + colorama.Back.LIGHTYELLOW_EX
@@ -71,7 +74,9 @@ def show_no_case_plans_warning():
 
 def get_test_id(display_id):
     """The id used in various places such as the test log path."""
-    return display_id.replace(".py::", ".").replace("::", ".")
+    return (
+        display_id.replace(".py::", ".").replace("::", ".").replace(" ", "_")
+    )
 
 
 def generate_case_plan_boilerplates(
@@ -375,7 +380,10 @@ def view_summary_of_existing_case_plans(root, tests):
 def create_tkinter_gui(tests, command_string):
     root = tk.Tk()
     root.title("SeleniumBase Case Plans Generator")
-    root.minsize(820, 652)
+    if shared_utils.is_windows():
+        root.minsize(820, 618)
+    else:
+        root.minsize(820, 652)
     tk.Label(root, text="").pack()
     run_display = (
         "Select from %s tests found:  "
@@ -388,8 +396,8 @@ def create_tkinter_gui(tests, command_string):
             "(Boilerplate Case Plans will be generated as needed)"
         )
     run_display_2 = "(Tests with existing Case Plans are already checked)"
-    tk.Label(root, text=run_display, fg="blue").pack()
-    tk.Label(root, text=run_display_2, fg="purple").pack()
+    tk.Label(root, text=run_display, bg="yellow", fg="green").pack()
+    tk.Label(root, text=run_display_2, bg="yellow", fg="magenta").pack()
     text_area = ScrolledText(
         root, width=100, height=12, wrap="word", state=tk.DISABLED
     )
@@ -402,13 +410,16 @@ def create_tkinter_gui(tests, command_string):
         row += " " * 200
         ara[count] = tk.IntVar()
         cb = None
-        if not is_windows:
+        if shared_utils.is_windows():
             cb = tk.Checkbutton(
                 text_area,
                 text=(row),
                 bg="white",
+                fg="black",
                 anchor="w",
                 pady=0,
+                borderwidth=1,
+                highlightthickness=1,
                 variable=ara[count],
             )
         else:
@@ -416,10 +427,9 @@ def create_tkinter_gui(tests, command_string):
                 text_area,
                 text=(row),
                 bg="white",
+                fg="black",
                 anchor="w",
                 pady=0,
-                borderwidth=0,
-                highlightthickness=0,
                 variable=ara[count],
             )
         parts = row.strip().split("/")
@@ -463,13 +473,20 @@ def create_tkinter_gui(tests, command_string):
     ).pack()
 
     tk.Label(root, text="").pack()
-    tk.Button(
-        root,
-        text=(
-            "Generate Summary of existing Case Plans"),
-        fg="teal",
-        command=lambda: view_summary_of_existing_case_plans(root, tests),
-    ).pack()
+    try:
+        tk.Button(
+            root,
+            text=("Generate Summary of existing Case Plans"),
+            fg="teal",
+            command=lambda: view_summary_of_existing_case_plans(root, tests),
+        ).pack()
+    except Exception:
+        tk.Button(
+            root,
+            text=("Generate Summary of existing Case Plans"),
+            fg="green",
+            command=lambda: view_summary_of_existing_case_plans(root, tests),
+        ).pack()
     tk.Label(root, text="\n").pack()
 
     # Bring form window to front
@@ -487,7 +504,7 @@ def create_tkinter_gui(tests, command_string):
 
 def main():
     use_colors = True
-    if "linux" in sys.platform:
+    if shared_utils.is_linux():
         use_colors = False
     c0, c1, c2, c3, c4, c5, cr = set_colors(use_colors)
     command_args = sys.argv[2:]
@@ -513,7 +530,8 @@ def main():
     print(message)
 
     proc = subprocess.Popen(
-        'pytest --co -q --rootdir="./" %s' % command_string,
+        '"%s" -m pytest --collect-only -q --rootdir="./" %s'
+        % (sys.executable, command_string),
         stdout=subprocess.PIPE,
         shell=True,
     )
@@ -524,7 +542,11 @@ def main():
         print(error_msg)
         return
     tests = []
-    for row in output.decode("utf-8").split("\n"):
+    if shared_utils.is_windows():
+        output = output.decode("latin1")
+    else:
+        output = output.decode("utf-8")
+    for row in output.replace("\r", "").split("\n"):
         if ("::") in row:
             tests.append(row)
     if not tests:

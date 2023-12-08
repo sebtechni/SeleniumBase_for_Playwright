@@ -8,20 +8,19 @@ from seleniumbase import config as sb_config
 from seleniumbase.config import settings
 from seleniumbase.core import log_helper
 from seleniumbase.fixtures import constants
+from seleniumbase.fixtures import shared_utils
 
-is_windows = False
-if sys.platform in ["win32", "win64", "x64"]:
-    is_windows = True
+is_windows = shared_utils.is_windows()
 python3_11_or_newer = False
 if sys.version_info >= (3, 11):
     python3_11_or_newer = True
+py311_patch2 = constants.PatchPy311.PATCH
 sys_argv = sys.argv
 pytest_plugins = ["pytester"]  # Adds the "testdir" fixture
 
 
 def pytest_addoption(parser):
-    """
-    This plugin adds the following command-line options to pytest:
+    """This plugin adds the following command-line options to pytest:
     --browser=BROWSER  (The web browser to use. Default: "chrome".)
     --chrome  (Shortcut for "--browser=chrome". Default.)
     --edge  (Shortcut for "--browser=edge".)
@@ -41,11 +40,13 @@ def pytest_addoption(parser):
     --port=PORT  (The Selenium Grid port used by the test server.)
     --cap-file=FILE  (The web browser's desired capabilities to use.)
     --cap-string=STRING  (The web browser's desired capabilities to use.)
-    --proxy=SERVER:PORT  (Connect to a proxy server:port for tests.)
-    --proxy=USERNAME:PASSWORD@SERVER:PORT  (Use authenticated proxy server.)
+    --proxy=SERVER:PORT  (Connect to a proxy server:port as tests are running)
+    --proxy=USERNAME:PASSWORD@SERVER:PORT  (Use an authenticated proxy server)
     --proxy-bypass-list=STRING (";"-separated hosts to bypass, Eg "*.foo.com")
     --proxy-pac-url=URL  (Connect to a proxy server using a PAC_URL.pac file.)
     --proxy-pac-url=USERNAME:PASSWORD@URL  (Authenticated proxy with PAC URL.)
+    --proxy-driver  (If a driver download is needed, will use: --proxy=PROXY.)
+    --multi-proxy  (Allow multiple authenticated proxies when multi-threaded.)
     --agent=STRING  (Modify the web browser's User-Agent string.)
     --mobile  (Use the mobile device emulator while running tests.)
     --metrics=STRING  (Set mobile metrics: "CSSWidth,CSSHeight,PixelRatio".)
@@ -55,6 +56,7 @@ def pytest_addoption(parser):
     --extension-zip=ZIP  (Load a Chrome Extension .zip|.crx, comma-separated.)
     --extension-dir=DIR  (Load a Chrome Extension directory, comma-separated.)
     --binary-location=PATH  (Set path of the Chromium browser binary to use.)
+    --driver-version=VER  (Set the chromedriver or uc_driver version to use.)
     --sjw  (Skip JS Waits for readyState to be "complete" or Angular to load.)
     --pls=PLS  (Set pageLoadStrategy on Chrome: "normal", "eager", or "none".)
     --headless  (Run tests in headless mode. The default arg on Linux OS.)
@@ -74,6 +76,7 @@ def pytest_addoption(parser):
     --message-duration=SECONDS  (The time length for Messenger alerts.)
     --check-js  (Check for JavaScript errors after page loads.)
     --ad-block  (Block some types of display ads from loading.)
+    --host-resolver-rules=RULES  (Set host-resolver-rules, comma-separated.)
     --block-images  (Block images from loading during tests.)
     --do-not-track  (Indicate to websites that you don't want to be tracked.)
     --verify-delay=SECONDS  (The delay before MasterQA verification checks.)
@@ -88,17 +91,19 @@ def pytest_addoption(parser):
     --enable-sync  (Enable "Chrome Sync" on websites.)
     --uc | --undetected  (Use undetected-chromedriver to evade bot-detection.)
     --uc-cdp-events  (Capture CDP events when running in "--undetected" mode.)
+    --log-cdp  ("goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"})
     --remote-debug  (Sync to Chrome Remote Debugger chrome://inspect/#devices)
-    --final-debug  (Enter Debug Mode after each test ends. Don't use with CI!)
+    --ftrace | --final-trace  (Debug Mode after each test. Don't use with CI!)
     --dashboard  (Enable the SeleniumBase Dashboard. Saved at: dashboard.html)
     --dash-title=STRING  (Set the title shown for the generated dashboard.)
     --enable-3d-apis  (Enables WebGL and 3D APIs.)
-    --swiftshader  (Use Chrome's "--use-gl=swiftshader" feature.)
+    --swiftshader  (Chrome "--use-gl=angle" / "--use-angle=swiftshader-webgl")
     --incognito  (Enable Chrome's Incognito mode.)
     --guest  (Enable Chrome's Guest mode.)
+    --dark  (Enable Chrome's Dark mode.)
     --devtools  (Open Chrome's DevTools when the browser opens.)
-    --reuse-session | --rs  (Reuse browser session for all tests.)
-    --reuse-class-session | --rcs  (Reuse session for tests in class.)
+    --rs | --reuse-session  (Reuse browser session for all tests.)
+    --rcs | --reuse-class-session  (Reuse session for tests in class.)
     --crumbs  (Delete all cookies between tests reusing a session.)
     --disable-beforeunload  (Disable the "beforeunload" event on Chrome.)
     --window-size=WIDTH,HEIGHT  (Set the browser's starting window size.)
@@ -117,7 +122,10 @@ def pytest_addoption(parser):
     cr = ""
     if "linux" not in sys.platform:
         # This will be seen when typing "pytest --help" on the command line.
-        colorama.init(autoreset=True)
+        if is_windows and hasattr(colorama, "just_fix_windows_console"):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c1 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
         c2 = colorama.Fore.BLUE + colorama.Back.LIGHTGREEN_EX
         c3 = colorama.Fore.MAGENTA + colorama.Back.LIGHTYELLOW_EX
@@ -165,13 +173,6 @@ def pytest_addoption(parser):
         help="""Shortcut for --browser=ie""",
     )
     parser.addoption(
-        "--opera",
-        action="store_true",
-        dest="use_opera",
-        default=False,
-        help="""Shortcut for --browser=opera""",
-    )
-    parser.addoption(
         "--safari",
         action="store_true",
         dest="use_safari",
@@ -197,15 +198,21 @@ def pytest_addoption(parser):
             constants.Environment.STAGING,
             constants.Environment.DEVELOP,
             constants.Environment.PRODUCTION,
+            constants.Environment.PERFORMANCE,
             constants.Environment.OFFLINE,
             constants.Environment.ONLINE,
             constants.Environment.MASTER,
             constants.Environment.REMOTE,
+            constants.Environment.LEGACY,
             constants.Environment.LOCAL,
             constants.Environment.ALPHA,
             constants.Environment.BETA,
+            constants.Environment.DEMO,
             constants.Environment.MAIN,
             constants.Environment.TEST,
+            constants.Environment.GOV,
+            constants.Environment.NEW,
+            constants.Environment.OLD,
             constants.Environment.UAT,
         ),
         default=constants.Environment.TEST,
@@ -264,8 +271,7 @@ def pytest_addoption(parser):
         dest="cap_file",
         default=None,
         help="""The file that stores browser desired capabilities
-                for BrowserStack, LambdaTest, Sauce Labs,
-                and other remote web drivers to use.""",
+                for BrowserStack, Sauce Labs, or other grids.""",
     )
     parser.addoption(
         "--cap_string",
@@ -273,8 +279,7 @@ def pytest_addoption(parser):
         dest="cap_string",
         default=None,
         help="""The string that stores browser desired capabilities
-                for BrowserStack, LambdaTest, Sauce Labs,
-                and other remote web drivers to use.
+                for BrowserStack, Sauce Labs, or other grids.
                 Enclose cap-string in single quotes.
                 Enclose parameter keys in double quotes.
                 Example: --cap-string='{"name":"test1","v":"42"}'""",
@@ -317,7 +322,7 @@ def pytest_addoption(parser):
         "--log_path",
         "--log-path",
         dest="log_path",
-        default="latest_logs/",
+        default=constants.Logs.LATEST + "/",
         help="""(DEPRECATED) - This value is NOT EDITABLE anymore.
                 Log files are saved to the "latest_logs/" folder.""",
     )
@@ -363,16 +368,29 @@ def pytest_addoption(parser):
         dest="database_env",
         choices=(
             constants.Environment.QA,
+            constants.Environment.RC,
             constants.Environment.STAGING,
             constants.Environment.DEVELOP,
             constants.Environment.PRODUCTION,
+            constants.Environment.PERFORMANCE,
+            constants.Environment.REPLICA,
+            constants.Environment.FEDRAMP,
+            constants.Environment.OFFLINE,
+            constants.Environment.ONLINE,
             constants.Environment.MASTER,
             constants.Environment.REMOTE,
+            constants.Environment.LEGACY,
             constants.Environment.LOCAL,
             constants.Environment.ALPHA,
             constants.Environment.BETA,
+            constants.Environment.DEMO,
+            constants.Environment.GDPR,
             constants.Environment.MAIN,
             constants.Environment.TEST,
+            constants.Environment.GOV,
+            constants.Environment.NEW,
+            constants.Environment.OLD,
+            constants.Environment.UAT,
         ),
         default=constants.Environment.TEST,
         help="The database environment to run the tests in.",
@@ -490,6 +508,25 @@ def pytest_addoption(parser):
                 Default: None.""",
     )
     parser.addoption(
+        "--proxy-driver",
+        "--proxy_driver",
+        action="store_true",
+        dest="proxy_driver",
+        default=False,
+        help="""If a driver download is needed for tests,
+                uses proxy settings set via --proxy=PROXY.""",
+    )
+    parser.addoption(
+        "--multi-proxy",
+        "--multi_proxy",
+        action="store_true",
+        dest="multi_proxy",
+        default=False,
+        help="""If you need to run multi-threaded tests with
+                multiple proxies that require authentication,
+                set this to allow multiple configurations.""",
+    )
+    parser.addoption(
         "--agent",
         "--user-agent",
         "--user_agent",
@@ -520,7 +557,7 @@ def pytest_addoption(parser):
         help="""Designates the three device metrics of the mobile
                 emulator: CSS Width, CSS Height, and Pixel-Ratio.
                 Format: A comma-separated string with the 3 values.
-                Example: "375,734,3"
+                Examples: "375,734,5" or "411,731,3" or "390,715,3"
                 Default: None. (Will use default values if None)""",
     )
     parser.addoption(
@@ -595,6 +632,17 @@ def pytest_addoption(parser):
         default=None,
         help="""Sets the path of the Chromium browser binary to use.
                 Uses the default location if not os.path.exists(PATH)""",
+    )
+    parser.addoption(
+        "--driver_version",
+        "--driver-version",
+        action="store",
+        dest="driver_version",
+        default=None,
+        help="""Setting this overrides the default driver version,
+                which is set to match the detected browser version.
+                Major version only. Example: "--driver-version=114"
+                (Only chromedriver and uc_driver are affected.)""",
     )
     parser.addoption(
         "--pls",
@@ -751,8 +799,8 @@ def pytest_addoption(parser):
         dest="message_duration",
         default=None,
         help="""Setting this overrides the default time that
-                messenger notifications remain visible when reaching
-                assert statements during Demo Mode.""",
+                messenger notifications remain visible when
+                reaching assert statements during Demo Mode.""",
     )
     parser.addoption(
         "--check_js",
@@ -774,6 +822,25 @@ def pytest_addoption(parser):
         default=False,
         help="""Using this makes WebDriver block display ads
                 that are defined in ad_block_list.AD_BLOCK_LIST.""",
+    )
+    parser.addoption(
+        "--host_resolver_rules",
+        "--host-resolver-rules",
+        action="store",
+        dest="host_resolver_rules",
+        default=None,
+        help="""Use this option to set "host-resolver-rules".
+                This lets you re-map traffic from any domain.
+                Eg. "MAP www.google-analytics.com 0.0.0.0".
+                Eg. "MAP * ~NOTFOUND , EXCLUDE myproxy".
+                Eg. "MAP * 0.0.0.0 , EXCLUDE 127.0.0.1".
+                Eg. "MAP *.google.com myproxy".
+                Find more examples on these pages:
+                (https://www.electronjs.org/docs/
+                 latest/api/command-line-switches)
+                (https://www.chromium.org/developers/
+                 design-documents/network-stack/socks-proxy/)
+                Use comma-separation for multiple host rules.""",
     )
     parser.addoption(
         "--block_images",
@@ -968,6 +1035,17 @@ def pytest_addoption(parser):
                 (GPU is disabled by default if swiftshader off.)""",
     )
     parser.addoption(
+        "--log_cdp",
+        "--log-cdp",
+        "--log_cdp_events",
+        "--log-cdp-events",
+        action="store_true",
+        dest="log_cdp_events",
+        default=None,
+        help="""Capture CDP events. Then you can print them.
+                Eg. print(driver.get_log("performance"))""",
+    )
+    parser.addoption(
         "--remote_debug",
         "--remote-debug",
         "--remote-debugger",
@@ -983,6 +1061,9 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--final-debug",
+        "--final-trace",
+        "--fdebug",
+        "--ftrace",
         action="store_true",
         dest="final_debug",
         default=False,
@@ -1041,6 +1122,15 @@ def pytest_addoption(parser):
         dest="guest_mode",
         default=False,
         help="""Using this enables Chrome's Guest mode.""",
+    )
+    parser.addoption(
+        "--dark",
+        "--dark_mode",
+        "--dark-mode",
+        action="store_true",
+        dest="dark_mode",
+        default=False,
+        help="""Using this enables Chrome's Dark mode.""",
     )
     parser.addoption(
         "--devtools",
@@ -1196,7 +1286,7 @@ def pytest_addoption(parser):
     for arg in sys_argv:
         if "--timeout=" in arg:
             raise Exception(
-                "\n\n  Don't use --timeout=s from pytest-timeout! "
+                "\n  Don't use --timeout=s from pytest-timeout! "
                 "\n  It's not thread-safe for WebDriver processes! "
                 "\n  Use --time-limit=s from SeleniumBase instead!\n"
             )
@@ -1204,7 +1294,7 @@ def pytest_addoption(parser):
     # Dashboard Mode does not support tests using forked subprocesses.
     if "--forked" in sys_argv and "--dashboard" in sys_argv:
         raise Exception(
-            "\n\n  Dashboard Mode does NOT support forked subprocesses!"
+            "\n  Dashboard Mode does NOT support forked subprocesses!"
             '\n  (*** DO NOT combine "--forked" with "--dashboard"! ***)\n'
         )
 
@@ -1213,7 +1303,7 @@ def pytest_addoption(parser):
         "--rs" in sys_argv or "--reuse-session" in sys_argv
     ):
         raise Exception(
-            "\n\n  Reuse-Session Mode does NOT support forked subprocesses!"
+            "\n  Reuse-Session Mode does NOT support forked subprocesses!"
             '\n  (DO NOT combine "--forked" with "--rs"/"--reuse-session"!)\n'
         )
 
@@ -1225,7 +1315,7 @@ def pytest_addoption(parser):
     ):
         if ("-n" in sys_argv) or (" -n=" in arg_join) or ("-c" in sys_argv):
             raise Exception(
-                "\n\n  Recorder Mode does NOT support multi-process mode (-n)!"
+                "\n  Recorder Mode does NOT support multi-process mode (-n)!"
                 '\n  (DO NOT combine "--recorder" with "-n NUM_PROCESSES"!)\n'
             )
 
@@ -1255,10 +1345,6 @@ def pytest_addoption(parser):
         browser_changes += 1
         browser_set = "firefox"
         browser_list.append("--browser=firefox")
-    if "--browser=opera" in sys_argv or "--browser opera" in sys_argv:
-        browser_changes += 1
-        browser_set = "opera"
-        browser_list.append("--browser=opera")
     if "--browser=safari" in sys_argv or "--browser safari" in sys_argv:
         browser_changes += 1
         browser_set = "safari"
@@ -1292,18 +1378,13 @@ def pytest_addoption(parser):
         browser_text = "ie"
         sb_config._browser_shortcut = "ie"
         browser_list.append("--ie")
-    if "--opera" in sys_argv and not browser_set == "opera":
-        browser_changes += 1
-        browser_text = "opera"
-        sb_config._browser_shortcut = "opera"
-        browser_list.append("--opera")
     if "--safari" in sys_argv and not browser_set == "safari":
         browser_changes += 1
         browser_text = "safari"
         sb_config._browser_shortcut = "safari"
         browser_list.append("--safari")
     if browser_changes > 1:
-        message = "\n\n  TOO MANY browser types were entered!"
+        message = "\n  TOO MANY browser types were entered!"
         message += "\n  There were %s found:\n  >  %s" % (
             browser_changes,
             ", ".join(browser_list),
@@ -1317,7 +1398,7 @@ def pytest_addoption(parser):
         and browser_text not in ["chrome", "edge"]
     ):
         message = (
-            "\n\n  Recorder Mode ONLY supports Chrome and Edge!"
+            "\n  Recorder Mode ONLY supports Chrome and Edge!"
             '\n  (Your browser choice was: "%s")\n' % browser_list[0]
         )
         raise Exception(message)
@@ -1340,21 +1421,16 @@ def pytest_addoption(parser):
         and undetectable
     ):
         message = (
-            '\n\n  Undetected-Chromedriver Mode ONLY supports Chrome!'
+            '\n  Undetected-Chromedriver Mode ONLY supports Chrome!'
             '\n  ("--uc" / "--undetected" / "--undetectable")'
             '\n  (Your browser choice was: "%s")\n' % browser_list[0]
         )
         raise Exception(message)
     if undetectable and "--wire" in sys_argv:
         raise Exception(
-            "\n\n  SeleniumBase doesn't support mixing --uc with --wire mode!"
+            "\n  SeleniumBase doesn't support mixing --uc with --wire mode!"
             "\n  If you need both, override get_new_driver() from BaseCase:"
             "\n  https://seleniumbase.io/help_docs/syntax_formats/#sb_sf_09\n"
-        )
-    if undetectable and "--mobile" in sys_argv:
-        raise Exception(
-            "\n\n  SeleniumBase doesn't support mixing --uc with --mobile"
-            '\n  UC has: "unrecognized chrome option: mobileEmulation"!\n'
         )
 
 
@@ -1402,6 +1478,7 @@ def pytest_configure(config):
     sb_config.extension_zip = config.getoption("extension_zip")
     sb_config.extension_dir = config.getoption("extension_dir")
     sb_config.binary_location = config.getoption("binary_location")
+    sb_config.driver_version = config.getoption("driver_version")
     sb_config.page_load_strategy = config.getoption("page_load_strategy")
     sb_config.with_testing_base = config.getoption("with_testing_base")
     sb_config.with_db_reporting = config.getoption("with_db_reporting")
@@ -1420,12 +1497,14 @@ def pytest_configure(config):
     sb_config.proxy_string = config.getoption("proxy_string")
     sb_config.proxy_bypass_list = config.getoption("proxy_bypass_list")
     sb_config.proxy_pac_url = config.getoption("proxy_pac_url")
+    sb_config.proxy_driver = config.getoption("proxy_driver")
+    sb_config.multi_proxy = config.getoption("multi_proxy")
     sb_config.cap_file = config.getoption("cap_file")
     sb_config.cap_string = config.getoption("cap_string")
     sb_config.settings_file = config.getoption("settings_file")
     sb_config.user_data_dir = config.getoption("user_data_dir")
     sb_config.database_env = config.getoption("database_env")
-    sb_config.log_path = "latest_logs/"  # (No longer editable!)
+    sb_config.log_path = constants.Logs.LATEST + "/"
     sb_config.archive_logs = config.getoption("archive_logs")
     if config.getoption("archive_downloads"):
         settings.ARCHIVE_EXISTING_DOWNLOADS = True
@@ -1440,6 +1519,7 @@ def pytest_configure(config):
     sb_config.message_duration = config.getoption("message_duration")
     sb_config.js_checking_on = config.getoption("js_checking_on")
     sb_config.ad_block_on = config.getoption("ad_block_on")
+    sb_config.host_resolver_rules = config.getoption("host_resolver_rules")
     sb_config.block_images = config.getoption("block_images")
     sb_config.do_not_track = config.getoption("do_not_track")
     sb_config.verify_delay = config.getoption("verify_delay")
@@ -1474,6 +1554,7 @@ def pytest_configure(config):
         sb_config.undetectable = True
     sb_config.no_sandbox = config.getoption("no_sandbox")
     sb_config.disable_gpu = config.getoption("disable_gpu")
+    sb_config.log_cdp_events = config.getoption("log_cdp_events")
     sb_config.remote_debug = config.getoption("remote_debug")
     sb_config.final_debug = config.getoption("final_debug")
     sb_config.dashboard = config.getoption("dashboard")
@@ -1482,6 +1563,7 @@ def pytest_configure(config):
     sb_config.swiftshader = config.getoption("swiftshader")
     sb_config.incognito = config.getoption("incognito")
     sb_config.guest_mode = config.getoption("guest_mode")
+    sb_config.dark_mode = config.getoption("dark_mode")
     sb_config.devtools = config.getoption("devtools")
     sb_config.reuse_session = config.getoption("reuse_session")
     sb_config.reuse_class_session = config.getoption("reuse_class_session")
@@ -1505,6 +1587,7 @@ def pytest_configure(config):
     sb_config._SMALL_TIMEOUT = settings.SMALL_TIMEOUT
     sb_config._LARGE_TIMEOUT = settings.LARGE_TIMEOUT
     sb_config.pytest_html_report = config.getoption("htmlpath")  # --html=FILE
+    sb_config._sb_class = None  # (Used with the sb fixture for "--rcs")
     sb_config._sb_node = {}  # sb node dictionary (Used with the sb fixture)
     # Dashboard-specific variables
     sb_config._results = {}  # SBase Dashboard test results
@@ -1586,8 +1669,8 @@ def pytest_configure(config):
             "(Linux uses --headless by default. "
             "To override, use --headed / --gui. "
             "For Xvfb mode instead, use --xvfb. "
-            "Or hide this info with --headless, "
-            "or by calling the new --headless2.)"
+            "Or you can hide this info by using "
+            "--headless / --headless2.)"
         )
         sb_config.headless = True
 
@@ -1607,12 +1690,13 @@ def pytest_configure(config):
         sb_config.browser = "firefox"
     elif config.getoption("use_ie"):
         sb_config.browser = "ie"
-    elif config.getoption("use_opera"):
-        sb_config.browser = "opera"
     elif config.getoption("use_safari"):
         sb_config.browser = "safari"
     else:
         pass  # Use the browser specified by "--browser=BROWSER"
+
+    if sb_config.browser == "safari" and sb_config.headless:
+        sb_config.headless = False  # Safari doesn't support headless mode
 
     if sb_config.dash_title:
         constants.Dashboard.TITLE = sb_config.dash_title.replace("_", " ")
@@ -1642,7 +1726,9 @@ def pytest_configure(config):
         from seleniumbase.core import download_helper
         from seleniumbase.core import proxy_helper
 
-        log_helper.log_folder_setup(sb_config.log_path, sb_config.archive_logs)
+        log_helper.log_folder_setup(
+            constants.Logs.LATEST + "/", sb_config.archive_logs
+        )
         download_helper.reset_downloads_folder()
         proxy_helper.remove_proxy_zip_if_present()
 
@@ -1657,8 +1743,7 @@ def _get_test_ids_(the_item):
         test_id = "unidentified_TestCase"
     display_id = test_id
     r"""
-    # Due to changes in SeleniumBase 1.66.0, we're now using the
-    # item's original nodeid for both the test_id and display_id.
+    # Now using the nodeid for both the test_id and display_id.
     # (This only impacts tests using The Dashboard.)
     # If there are any issues, we'll revert back to the old code.
     test_id = the_item.nodeid.split("/")[-1].replace(" ", "_")
@@ -1682,7 +1767,10 @@ def _create_dashboard_assets_():
     abs_path = os.path.abspath(".")
     assets_folder = os.path.join(abs_path, "assets")
     if not os.path.exists(assets_folder):
-        os.makedirs(assets_folder)
+        try:
+            os.makedirs(assets_folder, exist_ok=True)
+        except Exception:
+            pass
     pytest_style_css = os.path.join(assets_folder, "pytest_style.css")
     add_pytest_style_css = True
     if os.path.exists(pytest_style_css):
@@ -1712,8 +1800,8 @@ def _create_dashboard_assets_():
 def pytest_itemcollected(item):
     if "--co" in sys_argv or "--collect-only" in sys_argv:
         return
+    sb_config.item_count += 1
     if sb_config.dashboard:
-        sb_config.item_count += 1
         test_id, display_id = _get_test_ids_(item)
         sb_config._results[test_id] = "Untested"
         sb_config._duration[test_id] = "-"
@@ -1734,8 +1822,7 @@ def pytest_deselected(items):
 
 def pytest_collection_finish(session):
     """This runs after item collection is finalized.
-    https://docs.pytest.org/en/stable/reference.html
-    """
+    https://docs.pytest.org/en/stable/reference.html """
     sb_config._context_of_runner = False  # Context Manager Compatibility
     if "--co" in sys_argv or "--collect-only" in sys_argv:
         return
@@ -1743,7 +1830,9 @@ def pytest_collection_finish(session):
         from seleniumbase.core import download_helper
         from seleniumbase.core import proxy_helper
 
-        log_helper.log_folder_setup(sb_config.log_path, sb_config.archive_logs)
+        log_helper.log_folder_setup(
+            constants.Logs.LATEST + "/", sb_config.archive_logs
+        )
         download_helper.reset_downloads_folder()
         proxy_helper.remove_proxy_zip_if_present()
     if sb_config.dashboard and len(session.items) > 0:
@@ -1763,7 +1852,10 @@ def pytest_collection_finish(session):
         c1 = ""
         cr = ""
         if "linux" not in sys.platform:
-            colorama.init(autoreset=True)
+            if is_windows and hasattr(colorama, "just_fix_windows_console"):
+                colorama.just_fix_windows_console()
+            else:
+                colorama.init(autoreset=True)
             c1 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
             cr = colorama.Style.RESET_ALL
         if sb_config._multithreaded:
@@ -1807,7 +1899,7 @@ def pytest_runtest_teardown(item):
                         and self.driver
                         and "--pdb" not in sys_argv
                     ):
-                        if not is_windows or self.driver.service.process:
+                        if not (is_windows or self.driver.service.process):
                             self.driver.quit()
                 except Exception:
                     pass
@@ -1848,7 +1940,7 @@ def pytest_runtest_teardown(item):
     if (
         (
             sb_config._has_exception
-            or python3_11_or_newer
+            or (python3_11_or_newer and py311_patch2)
             or "--pdb" in sys_argv
         )
         and sb_config.list_fp
@@ -1888,7 +1980,7 @@ def pytest_terminal_summary(terminalreporter):
         return
     if not sb_config._multithreaded and not sb_config._sbase_detected:
         return
-    latest_logs_dir = os.path.join(os.getcwd(), "latest_logs") + os.sep
+    latest_logs_dir = os.path.join(os.getcwd(), constants.Logs.LATEST) + os.sep
     if (
         "failed" in terminalreporter.stats.keys()
         and os.path.exists(latest_logs_dir)
@@ -1925,7 +2017,11 @@ def pytest_terminal_summary(terminalreporter):
 def _perform_pytest_unconfigure_():
     from seleniumbase.core import proxy_helper
 
-    proxy_helper.remove_proxy_zip_if_present()
+    if (
+        (hasattr(sb_config, "multi_proxy") and not sb_config.multi_proxy)
+        or not hasattr(sb_config, "multi_proxy")
+    ):
+        proxy_helper.remove_proxy_zip_if_present()
     if hasattr(sb_config, "reuse_session") and sb_config.reuse_session:
         # Close the shared browser session
         if sb_config.shared_driver:
@@ -1943,8 +2039,9 @@ def _perform_pytest_unconfigure_():
         sb_config.shared_driver = None
     if hasattr(sb_config, "log_path") and sb_config.item_count > 0:
         log_helper.archive_logs_if_set(
-            sb_config.log_path, sb_config.archive_logs
+            constants.Logs.LATEST + "/", sb_config.archive_logs
         )
+    log_helper.clear_empty_logs()
     # Dashboard post-processing: Disable time-based refresh and stamp complete
     if not hasattr(sb_config, "dashboard") or not sb_config.dashboard:
         # Done with "pytest_unconfigure" unless using the Dashboard
@@ -2117,6 +2214,7 @@ def sb(request):
     Usage example: "def test_one(sb):"
     You may need to use this for tests that use other pytest fixtures."""
     from seleniumbase import BaseCase
+    from seleniumbase.core import session_helper
 
     class BaseClass(BaseCase):
         def setUp(self):
@@ -2130,6 +2228,11 @@ def sb(request):
             pass
 
     if request.cls:
+        if sb_config.reuse_class_session:
+            the_class = str(request.cls).split(".")[-1].split("'")[0]
+            if the_class != sb_config._sb_class:
+                session_helper.end_reused_class_session_as_needed()
+                sb_config._sb_class = the_class
         request.cls.sb = BaseClass("base_method")
         request.cls.sb.setUp()
         request.cls.sb._needs_tearDown = True
@@ -2180,7 +2283,7 @@ def pytest_runtest_makereport(item, call):
                 sb_config._extra_dash_entries.append(test_id)
         elif (
             sb_config._sbase_detected
-            and (python3_11_or_newer or "--pdb" in sys_argv)
+            and ((python3_11_or_newer and py311_patch2) or "--pdb" in sys_argv)
             and (report.outcome == "failed" or "AssertionError" in str(call))
             and not sb_config._has_exception
         ):
@@ -2229,8 +2332,7 @@ def pytest_runtest_makereport(item, call):
                 if not test_id:
                     test_id = "unidentified_TestCase"
                 r"""
-                # Due to changes in SeleniumBase 1.66.0, we're now using the
-                # item's original nodeid for both the test_id and display_id.
+                # Now using the nodeid for both the test_id and display_id.
                 # (This only impacts tests using The Dashboard.)
                 # If there are any issues, we'll revert back to the old code.
                 test_id = test_id.split("/")[-1].replace(" ", "_")
@@ -2253,8 +2355,8 @@ def pytest_runtest_makereport(item, call):
             if len(extra_report) > 1 and extra_report[1]["content"]:
                 report.extra = extra + extra_report
             if sb_config._dash_is_html_report:
-                # (If the Dashboard URL is the same as the HTML Report URL:)
-                # Have the html report refresh back to a dashboard on update
+                # If the Dashboard URL is the same as the HTML Report URL,
+                # have the html report refresh back to a dashboard on update.
                 refresh_updates = (
                     '<script type="text/javascript" src="%s">'
                     "</script>" % constants.Dashboard.LIVE_JS

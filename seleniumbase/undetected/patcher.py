@@ -35,24 +35,28 @@ class Patcher(object):
         # downloads_folder = "~/Library/Application Support/undetected_drivers"
     downloads_folder = download_helper.get_downloads_folder()
     if not os.path.exists(downloads_folder):
-        os.makedirs(downloads_folder)
+        try:
+            os.makedirs(downloads_folder, exist_ok=True)
+        except Exception:
+            pass  # Only possible during multithreaded tests
     data_path = os.path.abspath(os.path.expanduser(downloads_folder))
 
     def __init__(self, executable_path=None, force=False, version_main=0):
-        """
-        Args:
-            executable_path: None = automatic
-                A full file path to the chromedriver executable
-            force: False
-                Terminate processes which are holding lock
-            version_main: 0 = auto
-                Specify main chrome version (rounded, ex: 82)
-        """
+        """Args:
+        executable_path: None = automatic
+            A full file path to the chromedriver executable
+        force: False
+            Terminate processes which are holding lock
+        version_main: 0 = auto
+            Specify main chrome version (rounded, ex: 82) """
         self.force = force
         self.executable_path = None
         prefix = "undetected"
         if not os.path.exists(self.data_path):
-            os.makedirs(self.data_path, exist_ok=True)
+            try:
+                os.makedirs(self.data_path, exist_ok=True)
+            except Exception:
+                pass
         if not executable_path:
             self.executable_path = os.path.join(
                 self.data_path, "_".join([prefix, self.exe_name])
@@ -89,7 +93,7 @@ class Patcher(object):
             self.force = force
         try:
             os.unlink(self.executable_path)
-        except PermissionError:  # noqa
+        except PermissionError:
             if self.force:
                 self.force_kill_instances(self.executable_path)
                 not_force = not self.force
@@ -97,9 +101,9 @@ class Patcher(object):
             try:
                 if self.is_binary_patched():
                     return True  # Running AND patched
-            except PermissionError:  # noqa
+            except PermissionError:
                 pass
-        except FileNotFoundError:  # noqa
+        except FileNotFoundError:
             pass
         release = self.fetch_release_number()
         self.version_main = release.split(".")[0]
@@ -118,32 +122,31 @@ class Patcher(object):
         if self.version_main:
             path += "_%s" % self.version_main
         path = path.upper()
-        logger.debug("getting release number from %s" % path)
+        logger.debug("Getting release number from %s" % path)
         return urlopen(self.url_repo + path).read().decode()
 
     def fetch_package(self):
-        """
-        Downloads chromedriver from source.
-        :return: path to downloaded file
-        """
+        """Downloads chromedriver from source.
+        :return: path to downloaded file """
         from urllib.request import urlretrieve
 
         u = "%s/%s/%s" % (
             self.url_repo, self.version_full, self.zip_name
         )
-        logger.debug("downloading from %s" % u)
+        logger.debug("Downloading from %s" % u)
         return urlretrieve(u)[0]
 
     def unzip_package(self, fp):
-        """
-        :return: path to unpacked executable
-        """
-        logger.debug("unzipping %s" % fp)
+        """ :return: path to unpacked executable """
+        logger.debug("Unzipping %s" % fp)
         try:
             os.unlink(self.zip_path)
-        except (FileNotFoundError, OSError):  # noqa
+        except (FileNotFoundError, OSError):
             pass
-        os.makedirs(self.zip_path, mode=0o755, exist_ok=True)
+        try:
+            os.makedirs(self.zip_path, mode=0o755, exist_ok=True)
+        except Exception:
+            pass
         with zipfile.ZipFile(fp, mode="r") as zf:
             zf.extract(self.exe_name, self.zip_path)
         try:
@@ -163,10 +166,9 @@ class Patcher(object):
 
     @staticmethod
     def force_kill_instances(exe_name):
-        """
+        """ Terminate instances of UC.
         :param: executable name to kill, may be a path as well
-        :return: True on success else False
-        """
+        :return: True on success else False """
         exe_name = os.path.basename(exe_name)
         if IS_POSIX:
             r = os.system("kill -f -9 $(pidof %s)" % exe_name)
@@ -185,7 +187,11 @@ class Patcher(object):
     def is_binary_patched(self, executable_path=None):
         executable_path = executable_path or self.executable_path
         with io.open(executable_path, "rb") as fh:
-            if b"window.cdc_adoQpoasnfa76pfcZLmcfl_" in fh.read():
+            if re.search(
+                b"window.cdc_adoQpoasnfa76pfcZLmcfl_"
+                b"(Array|Promise|Symbol|Object|Proxy|JSON)",
+                fh.read()
+            ):
                 return False
         return True
 
@@ -205,13 +211,15 @@ class Patcher(object):
         with io.open(self.executable_path, "r+b") as fh:
             file_bin = fh.read()
             file_bin = re.sub(
-                b"window\\.cdc_[a-zA-Z0-9]{22}_(Array|Promise|Symbol)"
-                b" = window\\.(Array|Promise|Symbol);",
+                b"window\\.cdc_[a-zA-Z0-9]{22}_"
+                b"(Array|Promise|Symbol|Object|Proxy|JSON)"
+                b" = window\\.(Array|Promise|Symbol|Object|Proxy|JSON);",
                 gen_js_whitespaces,
                 file_bin,
             )
             file_bin = re.sub(
-                b"window\\.cdc_[a-zA-Z0-9]{22}_(Array|Promise|Symbol) \\|\\|",
+                b"window\\.cdc_[a-zA-Z0-9]{22}_"
+                b"(Array|Promise|Symbol|Object|Proxy|JSON) \\|\\|",
                 gen_js_whitespaces,
                 file_bin,
             )
@@ -277,19 +285,19 @@ class Patcher(object):
                 now = time.monotonic()
                 if now - t > timeout:
                     logger.debug(
-                        "could not unlink %s in time (%d seconds)"
+                        "Could not unlink %s in time (%d seconds)"
                         % (self.executable_path, timeout)
                     )
                     break
                 try:
                     os.unlink(self.executable_path)
                     logger.debug(
-                        "successfully unlinked %s"
+                        "Successfully unlinked %s"
                         % self.executable_path
                     )
                     break
-                except (OSError, RuntimeError, PermissionError):  # noqa
+                except (OSError, RuntimeError, PermissionError):
                     time.sleep(0.1)
                     continue
-                except FileNotFoundError:  # noqa
+                except FileNotFoundError:
                     break

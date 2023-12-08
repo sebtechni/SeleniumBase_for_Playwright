@@ -4,16 +4,17 @@ BaseCase.main(__name__, __file__)
 
 class VisualLayoutTests(BaseCase):
     def test_applitools_layout_change(self):
+        self.demo_mode = False  # (It would interfere with html comparisons)
         self.open("https://applitools.com/helloworld/?diff1")
         self.wait_for_element('a[href="?diff1"]')
         print('\nCreating baseline in "visual_baseline" folder.')
-        self.sleep(0.06)
+        self.sleep(0.08)
         self.check_window(name="helloworld", baseline=True)
         # Click a button that changes the text of an element
         # (Text changes do not impact visual comparisons)
         self.sleep(0.06)
         self.click('a[href="?diff1"]')
-        self.sleep(0.06)
+        self.sleep(0.14)
         # Verify html tags match the baseline
         self.check_window(name="helloworld", level=1)
         # Verify html tags and attribute names match the baseline

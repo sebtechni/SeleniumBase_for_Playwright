@@ -1,10 +1,14 @@
 """Use SeleniumBase to download files and verify."""
 import math
 from seleniumbase import BaseCase
+BaseCase.main(__name__, __file__)
 
 
 class DownloadTests(BaseCase):
     def test_download_chromedriver_notes(self):
+        if self._multithreaded:
+            self.open_if_not_url("about:blank")
+            self.skip("Skipping test in multi-threaded mode.")
         self.open("https://chromedriver.chromium.org/downloads")
         notes_file = "notes.txt"
         notes_link = (
@@ -22,7 +26,7 @@ class DownloadTests(BaseCase):
 
     def test_download_files_from_pypi(self):
         self.open("https://pypi.org/project/sbvirtualdisplay/#files")
-        self.assert_element('[data-clipboard-target="#pip-command"]')
+        self.assert_element("span#pip-command")
         self.assert_text("Download files", "div#files h2.page-title")
         self.assert_text("Download files", "a#files-tab")
         pkg_header = self.get_text("h1.package-header__name").strip()

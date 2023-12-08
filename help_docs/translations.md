@@ -16,11 +16,14 @@ class 我的测试类(硒测试用例):
     def test_例子1(self):
         self.开启("https://zh.wikipedia.org/wiki/")
         self.断言标题("维基百科，自由的百科全书")
-        self.断言元素('a[title="首页"]')
+        self.断言元素('a[title="Wikipedia:关于"]')
+        self.断言元素('span:contains("创建账号")')
+        self.断言元素('span:contains("登录")')
         self.断言文本("新闻动态", "span#新闻动态")
-        self.输入文本("#searchInput", "舞龍")
-        self.单击("#searchButton")
+        self.输入文本('input[name="search"]', "舞龍")
+        self.单击('button:contains("搜索")')
         self.断言文本("舞龍", "#firstHeading")
+        self.断言元素('img[src*="Chinese_draak.jpg"]')
 ```
 
 Here's another example:
@@ -33,11 +36,14 @@ class 私のテストクラス(セレニウムテストケース):
     def test_例1(self):
         self.を開く("https://ja.wikipedia.org/wiki/")
         self.テキストを確認する("ウィキペディア")
-        self.要素を確認する('[title="メインページに移動する"]')
-        self.入力("#searchInput", "アニメ")
-        self.クリックして("#searchButton")
+        self.要素を確認する('[title*="ウィキペディアへようこそ"]')
+        self.JS入力('input[name="search"]', "アニメ")
+        self.クリックして("#searchform button")
         self.テキストを確認する("アニメ", "#firstHeading")
-        self.入力("#searchInput", "寿司")
+        self.JS入力('input[name="search"]', "寿司")
+        self.クリックして("#searchform button")
+        self.テキストを確認する("寿司", "#firstHeading")
+        self.要素を確認する('img[alt="握り寿司"]')
 ```
 
 <a id="translation_api"></a>

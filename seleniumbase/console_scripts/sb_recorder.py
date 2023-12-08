@@ -20,13 +20,13 @@ import subprocess
 import sys
 from seleniumbase import config as sb_config
 from seleniumbase.fixtures import page_utils
+from seleniumbase.fixtures import shared_utils
 
-PLATFORM = sys.platform
-IS_WINDOWS = False
-if "win32" in PLATFORM or "win64" in PLATFORM or "x64" in PLATFORM:
-    IS_WINDOWS = True
 sb_config.rec_subprocess_p = None
 sb_config.rec_subprocess_used = False
+sys_executable = sys.executable
+if " " in sys_executable:
+    sys_executable = "python"
 if sys.version_info <= (3, 7):
     current_version = ".".join(str(ver) for ver in sys.version_info[:3])
     raise Exception(
@@ -45,7 +45,13 @@ def set_colors(use_colors):
     c4 = ""
     cr = ""
     if use_colors:
-        colorama.init(autoreset=True)
+        if (
+            "win32" in sys.platform
+            and hasattr(colorama, "just_fix_windows_console")
+        ):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c0 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
         c1 = colorama.Fore.BLUE + colorama.Back.LIGHTGREEN_EX
         c2 = colorama.Fore.RED + colorama.Back.LIGHTYELLOW_EX
@@ -134,9 +140,20 @@ def do_recording(file_name, url, overwrite_enabled, use_chrome, window):
             or "--gherkin" in command_args
         ):
             add_on = " --rec-behave"
-        command = "seleniumbase mkrec %s --url=%s --gui" % (file_name, url)
-        if IS_WINDOWS:
-            command = "python.exe -m %s" % command
+        command = (
+            "%s -m seleniumbase mkrec %s --url=%s --gui"
+            % (sys_executable, file_name, url)
+        )
+        if '"' not in url:
+            command = (
+                '%s -m seleniumbase mkrec %s --url="%s" --gui'
+                % (sys_executable, file_name, url)
+            )
+        elif "'" not in url:
+            command = (
+                "%s -m seleniumbase mkrec %s --url='%s' --gui"
+                % (sys_executable, file_name, url)
+            )
         if not use_chrome:
             command += " --edge"
         if (
@@ -171,10 +188,8 @@ def do_playback(file_name, use_chrome, window, demo_mode=False):
             'File "%s" does not exist in the current directory!' % file_name,
         )
         return
-    command = "pytest %s -q -s" % file_name
-    if IS_WINDOWS:
-        command = "python.exe -m %s" % command
-    if "linux" in sys.platform:
+    command = "%s -m pytest %s -q -s" % (sys_executable, file_name)
+    if shared_utils.is_linux():
         command += " --gui"
     if not use_chrome:
         command += " --edge"
@@ -248,14 +263,24 @@ def create_tkinter_gui():
     ).pack()
     tk.Label(window, text="").pack()
     tk.Label(window, text="Playback recording (Demo Mode):").pack()
-    tk.Button(
-        window,
-        text="Playback (Demo Mode)",
-        fg="teal",
-        command=lambda: do_playback(
-            fname.get(), cbb.get(), window, demo_mode=True
-        ),
-    ).pack()
+    try:
+        tk.Button(
+            window,
+            text="Playback (Demo Mode)",
+            fg="teal",
+            command=lambda: do_playback(
+                fname.get(), cbb.get(), window, demo_mode=True
+            ),
+        ).pack()
+    except Exception:
+        tk.Button(
+            window,
+            text="Playback (Demo Mode)",
+            fg="blue",
+            command=lambda: do_playback(
+                fname.get(), cbb.get(), window, demo_mode=True
+            ),
+        ).pack()
 
     # Bring form window to front
     send_window_to_front(window)
@@ -304,7 +329,7 @@ def end_program():
 
 def main():
     use_colors = True
-    if "linux" in sys.platform:
+    if shared_utils.is_linux():
         use_colors = False
     c0, c1, c2, c3, c4, cr = set_colors(use_colors)
     message = ""

@@ -10,7 +10,7 @@ class WordleTests(BaseCase):
 
     def initialize_word_list(self):
         txt_file = "https://seleniumbase.github.io/cdn/txt/wordle_words.txt"
-        word_string = requests.get(txt_file).text
+        word_string = requests.get(txt_file, timeout=3).text
         self.word_list = ast.literal_eval(word_string)
 
     def modify_word_list(self, word, letter_status):
@@ -51,8 +51,11 @@ class WordleTests(BaseCase):
 
     def test_wordle(self):
         if self.headless:
+            self.open_if_not_url("about:blank")
             self.skip("Skip this test in headless mode!")
         self.open("https://www.nytimes.com/games/wordle/index.html")
+        self.click_if_visible("button.purr-blocker-card__button", timeout=2)
+        self.click_if_visible('button:contains("Play")', timeout=2)
         self.click_if_visible('svg[data-testid="icon-close"]', timeout=2)
         self.remove_elements("div.place-ad")
         self.initialize_word_list()
@@ -62,6 +65,8 @@ class WordleTests(BaseCase):
         found_word = False
         for attempt in range(6):
             num_attempts += 1
+            if len(self.word_list) == 0:
+                self.fail("Today's word was not found in my dictionary!")
             word = random.choice(self.word_list)
             letters = []
             for letter in word:

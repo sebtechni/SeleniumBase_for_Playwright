@@ -23,12 +23,9 @@ if sys.version_info <= (3, 7):
         "\n* SBase Commander requires Python 3.7 or newer!"
         "\n** You are currently using Python %s" % current_version
     )
+from seleniumbase.fixtures import shared_utils
 import tkinter as tk  # noqa: E402
 from tkinter.scrolledtext import ScrolledText  # noqa: E402
-
-is_windows = False
-if sys.platform in ["win32", "win64", "x64"]:
-    is_windows = True
 
 
 def set_colors(use_colors):
@@ -41,7 +38,13 @@ def set_colors(use_colors):
     c6 = ""
     cr = ""
     if use_colors:
-        colorama.init(autoreset=True)
+        if (
+            shared_utils.is_windows()
+            and hasattr(colorama, "just_fix_windows_console")
+        ):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c0 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
         c1 = colorama.Fore.BLUE + colorama.Back.LIGHTGREEN_EX
         c2 = colorama.Fore.RED + colorama.Back.LIGHTYELLOW_EX
@@ -81,7 +84,7 @@ def do_behave_run(
         if selected_tests[selected_test].get():
             total_selected_tests += 1
 
-    full_run_command = "behave"
+    full_run_command = '"%s" -m behave' % sys.executable
     if total_selected_tests == 0 or total_tests == total_selected_tests:
         if command_string:
             full_run_command += " "
@@ -91,8 +94,8 @@ def do_behave_run(
             if selected_tests[test_number].get():
                 full_run_command += " "
                 test_to_run = test
-                if test.startswith("(GROUP) "):
-                    test_to_run = test.split("(GROUP) ")[1]
+                if test.startswith("(GROUP)  "):
+                    test_to_run = test.split("(GROUP)  ")[1]
                     full_run_command += test_to_run.split(" => ")[0]
                 else:
                     full_run_command += test.split(" => ")[0]
@@ -108,6 +111,10 @@ def do_behave_run(
         full_run_command += " -D rs"
     elif "(-D rs -D crumbs)" in rs_string:
         full_run_command += " -D rs -D crumbs"
+    elif "(-D rcs)" in rs_string:
+        full_run_command += " -D rcs"
+    elif "(-D rcs -D crumbs)" in rs_string:
+        full_run_command += " -D rcs -D crumbs"
 
     if quiet_mode:
         full_run_command += " --quiet"
@@ -123,7 +130,7 @@ def do_behave_run(
 
     if headless:
         full_run_command += " -D headless"
-    elif "linux" in sys.platform:
+    elif shared_utils.is_linux():
         full_run_command += " -D gui"
 
     if save_screenshots:
@@ -173,10 +180,13 @@ def do_behave_run(
     send_window_to_front(root)
 
 
-def create_tkinter_gui(tests, command_string):
+def create_tkinter_gui(tests, command_string, t_count, f_count, s_tests):
     root = tk.Tk()
     root.title("SeleniumBase Behave Commander | GUI for Behave")
-    root.minsize(820, 656)
+    if shared_utils.is_windows():
+        root.minsize(820, 640)
+    else:
+        root.minsize(820, 656)
     tk.Label(root, text="").pack()
 
     options_list = [
@@ -184,7 +194,7 @@ def create_tkinter_gui(tests, command_string):
         "Use Edge Browser  (-D edge)",
         "Use Firefox Browser  (-D firefox)",
     ]
-    if "darwin" in sys.platform:
+    if shared_utils.is_mac():
         options_list.append("Use Safari Browser  (-D safari)")
     brx = tk.StringVar(root)
     brx.set(options_list[0])
@@ -193,11 +203,13 @@ def create_tkinter_gui(tests, command_string):
 
     options_list = [
         "New Session Per Test  (Default)",
-        "Reuse Session for all tests  (-D rs)",
-        "Reuse Session / clear cookies  (-D rs -D crumbs)",
+        "Reuse Session for ALL the tests  (-D rs)",
+        "Reuse Session and clear cookies  (-D rs -D crumbs)",
+        "Reuse Session in the SAME class/feature  (-D rcs)",
+        "Reuse Session in class and clear cookies  (-D rcs -D crumbs)",
     ]
     rsx = tk.StringVar(root)
-    rsx.set(options_list[2])
+    rsx.set(options_list[0])
     question_menu = tk.OptionMenu(root, rsx, *options_list)
     question_menu.pack()
 
@@ -239,14 +251,18 @@ def create_tkinter_gui(tests, command_string):
     chk.pack()
 
     tk.Label(root, text="").pack()
+    plural = "s"
+    if f_count == 1:
+        plural = ""
     run_display = (
-        "Select from %s tests:  "
-        "(If NO TESTS are selected, then ALL TESTS will run)"
-        % len(tests)
+        "Select from %s rows (%s feature%s with %s scenarios):  "
+        "(All tests will run if none are selected)"
+        % (len(tests), f_count, plural, t_count)
     )
-    if len(tests) == 1:
-        run_display = "Only ONE TEST was found:  (Will run automatically)"
-    tk.Label(root, text=run_display, fg="blue").pack()
+    if t_count == 1:
+        run_display = "Only ONE TEST was found and will be run:"
+        tests = s_tests
+    tk.Label(root, text=run_display, bg="yellow", fg="magenta").pack()
     text_area = ScrolledText(
         root, width=100, height=12, wrap="word", state=tk.DISABLED
     )
@@ -257,13 +273,16 @@ def create_tkinter_gui(tests, command_string):
         row += " " * 200
         ara[count] = tk.IntVar()
         cb = None
-        if not is_windows:
+        if shared_utils.is_windows():
             cb = tk.Checkbutton(
                 text_area,
                 text=(row),
                 bg="white",
+                fg="black",
                 anchor="w",
                 pady=0,
+                borderwidth=1,
+                highlightthickness=1,
                 variable=ara[count],
             )
         else:
@@ -271,10 +290,9 @@ def create_tkinter_gui(tests, command_string):
                 text_area,
                 text=(row),
                 bg="white",
+                fg="black",
                 anchor="w",
                 pady=0,
-                borderwidth=0,
-                highlightthickness=0,
                 variable=ara[count],
             )
         text_area.window_create("end", window=cb)
@@ -287,7 +305,7 @@ def create_tkinter_gui(tests, command_string):
     tk.Label(
         root,
         text='Additional "behave" Options:  (Eg. "-D incognito --junit")',
-        fg="blue",
+        bg="yellow", fg="blue",
     ).pack()
     entry = tk.Entry(root, textvariable=aopts)
     entry.pack()
@@ -349,7 +367,7 @@ def create_tkinter_gui(tests, command_string):
 
 def main():
     use_colors = True
-    if "linux" in sys.platform:
+    if shared_utils.is_linux():
         use_colors = False
     c0, c1, c2, c3, c4, c5, c6, cr = set_colors(use_colors)
     command_args = sys.argv[2:]
@@ -380,7 +398,8 @@ def main():
     command_string = command_string.replace("--quiet", "")
     command_string = command_string.replace("-q", "")
     proc = subprocess.Popen(
-        "behave -d %s --show-source" % command_string,
+        '"%s" -m behave -d %s --show-source'
+        % (sys.executable, command_string),
         stdout=subprocess.PIPE,
         shell=True,
     )
@@ -399,7 +418,8 @@ def main():
     file_scenario_count = {}
     f_count = 0
     s_count = 0
-    if is_windows:
+    t_count = 0
+    if shared_utils.is_windows():
         output = output.decode("latin1")
     else:
         output = output.decode("utf-8")
@@ -436,13 +456,14 @@ def main():
                 feature_name = feature_name.split(" # ")[-1]
             s_count = file_scenario_count[str(f_count)]
             filename = filename.strip()
-            t_name = "(GROUP) %s => %s" % (filename, feature_name)
-            t_name += " <> (%s Total)" % s_count
+            t_name = "(GROUP)  %s => %s" % (filename, feature_name)
+            t_name += "  <>  (%s Total)" % s_count
             f_tests.append(t_name)
         elif (
             row.startswith("  Scenario: ")
             or row.startswith("  Scenario Outline: ")
         ):
+            t_count += 1
             line_num = row.split(":")[-1]
             scenario_name = None
             if row.startswith("  Scenario: "):
@@ -470,7 +491,7 @@ def main():
         print(error_msg)
         return
 
-    create_tkinter_gui(tests, command_string)
+    create_tkinter_gui(tests, command_string, t_count, f_count, s_tests)
 
 
 if __name__ == "__main__":

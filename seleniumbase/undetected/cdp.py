@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+import fasteners
 import json
 import logging
 import requests
+from seleniumbase.fixtures import constants
+from seleniumbase.fixtures import shared_utils
 
 log = logging.getLogger(__name__)
 
@@ -51,15 +54,15 @@ class CDP:
         self._session = requests.Session()
         self._last_resp = None
         self._last_json = None
-        resp = self.get(self.endpoints.json)  # noqa
+        resp = self.get(self.endpoints.json)
         self.sessionId = resp[0]["id"]
         self.wsurl = resp[0]["webSocketDebuggerUrl"]
 
     def tab_activate(self, id=None):
         if not id:
             active_tab = self.tab_list()[0]
-            id = active_tab.id  # noqa
-            self.wsurl = active_tab.webSocketDebuggerUrl  # noqa
+            id = active_tab.id
+            self.wsurl = active_tab.webSocketDebuggerUrl
         return self.post(self.endpoints["activate"].format(id=id))
 
     def tab_list(self):
@@ -74,9 +77,16 @@ class CDP:
         opentabs = [s for s in sessions if s["type"] == "page"]
         return self.post(self.endpoints["close"].format(id=opentabs[-1]["id"]))
 
-    async def send(self, method, params):  # noqa
-        import websockets
-
+    async def send(self, method, params):
+        pip_find_lock = fasteners.InterProcessLock(
+            constants.PipInstall.FINDLOCK
+        )
+        with pip_find_lock:
+            try:
+                import websockets
+            except Exception:
+                shared_utils.pip_install("websockets")
+                import websockets
         self._reqid += 1
         async with websockets.connect(self.wsurl) as ws:
             await ws.send(

@@ -10,7 +10,7 @@ edit_uri: ""
 site_dir: "site"
 docs_dir: "mkdocs_build"
 # Copyright
-copyright: Copyright &copy; 2014 - 2022 Michael Mintz
+copyright: Copyright &copy; 2014 - 2023 Michael Mintz
 # Extensions
 markdown_extensions:
   - admonition
@@ -74,7 +74,6 @@ plugins:
         - SECURITY.md
         - examples/case_summary.md
         - help_docs/chinese.md
-        - help_docs/mysql_installation.md
         - integrations/katalon/ReadMe.md
         - help_docs/verify_webdriver.md
         - help_docs/webdriver_installation.md
@@ -130,9 +129,11 @@ nav:
     - 🎞️ Presenter Demo: https://seleniumbase.io/other/presenter.html
     - 📊 Chart Maker Demo: https://seleniumbase.io/other/chart_presentation.html
     - ⚙️ Python Virtual Envs: https://seleniumbase.io/other/py_virtual_envs.html
+    - 🔰 Fundamentals Demo: https://seleniumbase.io/other/fundamentals.html
   - Demo Pages:
     - 🍵 Coffee Cart (Test App): https://seleniumbase.io/coffee/
     - 📑 Demo Page (Test Page): https://seleniumbase.io/demo_page
+    - 🔑 Simple App (Test Page): https://seleniumbase.io/simple/login
     - 🔑 MFA Login (Test App): https://seleniumbase.io/realworld/login
     - 📝 TinyMCE (Test Page): https://seleniumbase.io/tinymce/
     - 🔢 Calculator (Test App): https://seleniumbase.io/apps/calculator
@@ -151,19 +152,26 @@ nav:
     - ↔️ W3Schools drag & drop: https://seleniumbase.io/w3schools/drag_drop
     - ☑️ W3Schools checkboxes: https://seleniumbase.io/w3schools/checkboxes
     - 🔘 W3Schools radio buttons: https://seleniumbase.io/w3schools/radio_buttons
+  - Pages with CAPTCHAs:
+    - 🔑 CF Turnstile Test: https://seleniumbase.io/apps/turnstile
+    - 🔑 CF Turnstile on Form: https://seleniumbase.io/apps/form_turnstile
+    - 🔐 reCAPTCHA v2 Test: https://seleniumbase.io/apps/recaptcha
+    - 🔐 reCAPTCHA v2 on Form: https://seleniumbase.io/apps/form_recaptcha
+    - 🔐 reCAPTCHA, invisible: https://seleniumbase.io/apps/invisible_recaptcha
   - Additional Help Docs:
     - 📑 Table of Contents: help_docs/ReadMe.md
+    - 🖼️ How to handle iframes: help_docs/handling_iframes.md
     - 🔐 Decorators / Security: seleniumbase/common/ReadMe.md
-    - 🐳 Docker Start Guide: integrations/docker/ReadMe.md
     - 🗂️ Case Plans (examples): examples/case_summary.md
     - 🧭 Using Safari Driver: help_docs/using_safari_driver.md
+    - 🐳 Docker Start Guide: integrations/docker/ReadMe.md
     - 👤 Shadow DOM Support: help_docs/shadow_dom.md
     - 👥 macOS Hidden Files: help_docs/hidden_files_info.md
     - 🗄️ MySQL Instructions: help_docs/mysql_installation.md
     - 📃 Desired Capabilities: help_docs/desired_capabilities.md
     - 📜 Useful grep commands: help_docs/useful_grep_commands.md
-    - ⚙️ WebDriver Installation: help_docs/webdriver_installation.md
-    - ✔️ Verifying WebDriver: help_docs/verify_webdriver.md
+    - ⚙️ Downloading drivers: help_docs/webdriver_installation.md
+    - ✔️ Verifying drivers: help_docs/verify_webdriver.md
   - Behave-BDD Integration:
     - 🐝 Behave-BDD ReadMe: examples/behave_bdd/ReadMe.md
     - 🐝 Behave-BDD GUI App: help_docs/behave_gui.md
@@ -179,6 +187,6 @@ nav:
 extra:
   analytics:
     provider: google
-    # property: G-P5KFWRNLRN
-    property: UA-167313767-1
-# google_analytics: ['UA-167313767-1', 'seleniumbase.io']
+    property: G-P5KFWRNLRN
+    # property: UA-167313767-1
+# google_analytics: ['G-P5KFWRNLRN', 'seleniumbase.io']

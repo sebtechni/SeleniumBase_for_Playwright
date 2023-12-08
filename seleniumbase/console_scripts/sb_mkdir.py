@@ -54,7 +54,13 @@ def main():
     c7 = ""
     cr = ""
     if "linux" not in sys.platform:
-        colorama.init(autoreset=True)
+        if (
+            "win32" in sys.platform
+            and hasattr(colorama, "just_fix_windows_console")
+        ):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c1 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
         c5 = colorama.Fore.RED + colorama.Back.LIGHTYELLOW_EX
         c7 = colorama.Fore.BLACK + colorama.Back.MAGENTA
@@ -121,10 +127,8 @@ def main():
 
     data = []
     data.append("[pytest]")
-    data.append(
-        "addopts = --capture=no -p no:cacheprovider --ignore=recordings"
-    )
-    data.append("norecursedirs = .* build dist recordings temp")
+    data.append("addopts = --capture=no -p no:cacheprovider")
+    data.append("norecursedirs = .* build dist recordings temp assets")
     data.append("filterwarnings =")
     data.append("    ignore::pytest.PytestWarning")
     data.append("    ignore:.*U.*mode is deprecated:DeprecationWarning")
@@ -221,6 +225,7 @@ def main():
     data.append("pip-selfcheck.json")
     data.append("ipython.1.gz")
     data.append("nosetests.1")
+    data.append(".noseids")
     data.append("pip-log.txt")
     data.append(".swp")
     data.append(".coverage")
@@ -327,21 +332,21 @@ def main():
     data.append('        self.type("#user-name", "standard_user")')
     data.append('        self.type("#password", "secret_sauce\\n")')
     data.append('        self.assert_element("div.inventory_list")')
-    data.append('        self.assert_text("PRODUCTS", "span.title")')
+    data.append('        self.assert_text("Products", "span.title")')
     data.append("        self.click('button[name*=\"backpack\"]')")
     data.append('        self.click("#shopping_cart_container a")')
-    data.append('        self.assert_text("YOUR CART", "span.title")')
+    data.append('        self.assert_text("Your Cart", "span.title")')
     data.append('        self.assert_text("Backpack", "div.cart_item")')
     data.append('        self.click("button#checkout")')
     data.append('        self.type("#first-name", "SeleniumBase")')
     data.append('        self.type("#last-name", "Automation")')
     data.append('        self.type("#postal-code", "77123")')
     data.append('        self.click("input#continue")')
-    data.append('        self.assert_text("CHECKOUT: OVERVIEW")')
+    data.append('        self.assert_text("Checkout: Overview")')
     data.append('        self.assert_text("Backpack", "div.cart_item")')
     data.append('        self.click("button#finish")')
     data.append(
-        '        self.assert_exact_text("THANK YOU FOR YOUR ORDER", "h2")'
+        '        self.assert_exact_text("Thank you for your order!", "h2")'
     )
     data.append("        self.assert_element('img[alt=\"Pony Express\"]')")
     data.append('        self.js_click("a#logout_sidebar_link")')
@@ -438,7 +443,8 @@ def main():
     data.append('        self.click_link("SeleniumBase Demo Page")')
     data.append('        self.assert_exact_text("Demo Page", "h1")')
     data.append('        self.highlight("h2")')
-    data.append("        self.demo_mode = True")
+    data.append('        if self.headed:')
+    data.append("            self.activate_demo_mode()")
     data.append('        self.type("input", "Have a Nice Day!")')
     data.append('        self.assert_text("SeleniumBase", "h2")')
     data.append("")
@@ -476,7 +482,7 @@ def main():
         '        self.open("https://seleniumbase.io/help_docs/how_it_works/")'
     )
     data.append(
-        '        self.type(\'input[aria-label="Search"]\', search_term)'
+        '        self.type(\'[aria-label="Search"]\', search_term)'
     )
     data.append('        self.click(\'mark:contains("%s")\' % keyword)')
     data.append('        self.assert_title_contains(title_text)')
@@ -618,8 +624,14 @@ def main():
     data.append("class GoogleTests(BaseCase):")
     data.append("    def test_google_dot_com(self):")
     data.append('        self.open("https://google.com/ncr")')
-    data.append("        self.sleep(0.1)")
-    data.append("        self.hide_elements('iframe[name=\"callout\"]')")
+    data.append('        self.assert_title_contains("Google")')
+    data.append("        self.sleep(0.05)")
+    data.append("        self.save_screenshot_to_logs()")
+    data.append(
+        "        self.wait_for_element('iframe[role=\"presentation\"]')"
+    )
+    data.append("        self.hide_elements('iframe')")
+    data.append("        self.sleep(0.05)")
     data.append("        self.save_screenshot_to_logs()")
     data.append('        self.type(HomePage.search_box, "github.com")')
     data.append("        self.assert_element(HomePage.search_button)")
@@ -637,7 +649,7 @@ def main():
     data = []
     data.append("class HomePage(object):")
     data.append("    dialog_box = '[role=\"dialog\"] div'")
-    data.append("    search_box = 'input[title=\"Search\"]'")
+    data.append("    search_box = '[title=\"Search\"]'")
     data.append("    search_button = 'input[value=\"Google Search\"]'")
     data.append(
         '    feeling_lucky_button = """input[value="I\'m Feeling Lucky"]"""'

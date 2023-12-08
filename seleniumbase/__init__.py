@@ -14,6 +14,7 @@ from seleniumbase.core.browser_launcher import get_driver  # noqa
 from seleniumbase.fixtures import js_utils  # noqa
 from seleniumbase.fixtures import page_actions  # noqa
 from seleniumbase.fixtures import page_utils  # noqa
+from seleniumbase.fixtures import shared_utils  # noqa
 from seleniumbase.fixtures.base_case import BaseCase  # noqa
 from seleniumbase.masterqa.master_qa import MasterQA  # noqa
 from seleniumbase.plugins.sb_manager import SB  # noqa
@@ -28,12 +29,9 @@ if sys.version_info[0] < 3 and "pdbp" in locals():
         pdb.__dict__[key] = pdbp.__dict__[key]
     if hasattr(pdb, "DefaultConfig"):
         # Here's how to customize Pdb+ options
-        pdb.DefaultConfig.filename_color = pdb.Color.blue
+        pdb.DefaultConfig.filename_color = pdb.Color.fuchsia
         pdb.DefaultConfig.line_number_color = pdb.Color.turquoise
-        pdb.DefaultConfig.show_hidden_frames_count = False
-        pdb.DefaultConfig.disable_pytest_capturing = True
-        pdb.DefaultConfig.enable_hidden_frames = False
-        pdb.DefaultConfig.truncate_long_lines = True
+        pdb.DefaultConfig.truncate_long_lines = False
         pdb.DefaultConfig.sticky_by_default = True
 colored_traceback.add_hook()
 if sys.version_info >= (3, 7):

@@ -1,6 +1,7 @@
 """Refined Raw Selenium Example - (ONLY Selenium / NO SeleniumBase)"""
 import sys
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from unittest import TestCase
@@ -21,7 +22,8 @@ class RefinedRawSelenium(TestCase):
             "profile.password_manager_enabled": False,
         }
         options.add_experimental_option("prefs", prefs)
-        self.driver = webdriver.Chrome(options=options)
+        service = Service(service_args=["--disable-build-check"])
+        self.driver = webdriver.Chrome(options=options, service=service)
 
     def tearDown(self):
         if self.driver:
@@ -107,10 +109,10 @@ class RefinedRawSelenium(TestCase):
         self.type("#user-name", "standard_user")
         self.type("#password", "secret_sauce\n")
         self.assert_element("div.inventory_list")
-        self.assert_text("PRODUCTS", "span.title")
+        self.assert_text("Products", "span.title")
         self.click('button[name*="backpack"]')
         self.click("#shopping_cart_container a")
-        self.assert_exact_text("YOUR CART", "span.title")
+        self.assert_exact_text("Your Cart", "span.title")
         self.assert_text("Backpack", "div.cart_item")
         self.click("#remove-sauce-labs-backpack")
         self.assert_element_not_visible("div.cart_item")

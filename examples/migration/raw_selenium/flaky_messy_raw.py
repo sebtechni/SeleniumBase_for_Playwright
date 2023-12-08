@@ -1,6 +1,7 @@
 """Flaky Raw Selenium Example - (ONLY Selenium / NO SeleniumBase)"""
 import sys
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from unittest import TestCase
 
@@ -20,7 +21,8 @@ class FlakyMessyRawSelenium(TestCase):
             "profile.password_manager_enabled": False,
         }
         options.add_experimental_option("prefs", prefs)
-        self.driver = webdriver.Chrome(options=options)
+        service = Service(service_args=["--disable-build-check"])
+        self.driver = webdriver.Chrome(options=options, service=service)
 
     def tearDown(self):
         if self.driver:
@@ -51,11 +53,11 @@ class FlakyMessyRawSelenium(TestCase):
         element.submit()
         self.driver.find_element(by_css, "div.inventory_list")
         element = self.driver.find_element(by_css, "span.title")
-        self.assertEqual(element.text, "PRODUCTS")
+        self.assertEqual(element.text, "Products")
         self.driver.find_element(by_css, 'button[name*="backpack"]').click()
         self.driver.find_element(by_css, "#shopping_cart_container a").click()
         element = self.driver.find_element(by_css, "span.title")
-        self.assertEqual(element.text, "YOUR CART")
+        self.assertEqual(element.text, "Your Cart")
         element = self.driver.find_element(by_css, "div.cart_item")
         self.assertIn("Backpack", element.text)
         self.driver.find_element(by_css, "#remove-sauce-labs-backpack").click()

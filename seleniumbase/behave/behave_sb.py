@@ -25,11 +25,12 @@ behave -D agent="User Agent String" -D demo
 -D port=PORT  (The Selenium Grid port used by the test server.)
 -D cap-file=FILE  (The web browser's desired capabilities to use.)
 -D cap-string=STRING  (The web browser's desired capabilities to use.)
--D proxy=SERVER:PORT  (Connect to a proxy server:port for tests.)
--D proxy=USERNAME:PASSWORD@SERVER:PORT  (Use authenticated proxy server.)
+-D proxy=SERVER:PORT  (Connect to a proxy server:port as tests are running)
+-D proxy=USERNAME:PASSWORD@SERVER:PORT  (Use an authenticated proxy server)
 -D proxy-bypass-list=STRING (";"-separated hosts to bypass, Eg "*.foo.com")
 -D proxy-pac-url=URL  (Connect to a proxy server using a PAC_URL.pac file.)
 -D proxy-pac-url=USERNAME:PASSWORD@URL  (Authenticated proxy with PAC URL.)
+-D multi-proxy  (Allow multiple authenticated proxies when multi-threaded.)
 -D agent=STRING  (Modify the web browser's User-Agent string.)
 -D mobile  (Use the mobile device emulator while running tests.)
 -D metrics=STRING  (Set mobile metrics: "CSSWidth,CSSHeight,PixelRatio".)
@@ -39,6 +40,7 @@ behave -D agent="User Agent String" -D demo
 -D extension-zip=ZIP  (Load a Chrome Extension .zip|.crx, comma-separated.)
 -D extension-dir=DIR  (Load a Chrome Extension directory, comma-separated.)
 -D binary-location=PATH  (Set path of the Chromium browser binary to use.)
+-D driver-version=VER  (Set the chromedriver or uc_driver version to use.)
 -D sjw  (Skip JS Waits for readyState to be "complete" or Angular to load.)
 -D pls=PLS  (Set pageLoadStrategy on Chrome: "normal", "eager", or "none".)
 -D headless  (Run tests in headless mode. The default arg on Linux OS.)
@@ -72,16 +74,19 @@ behave -D agent="User Agent String" -D demo
 -D enable-ws  (Enable Web Security on Chromium-based browsers.)
 -D enable-sync  (Enable "Chrome Sync".)
 -D uc | -D undetected  (Use undetected-chromedriver to evade bot-detection)
--D uc-cdp-events  (Capture CDP events when running in "--undetected" mode.)
+-D uc-cdp-events  (Capture CDP events when running in "-D undetected" mode)
+-D log-cdp  ("goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"})
 -D remote-debug  (Sync to Chrome Remote Debugger chrome://inspect/#devices)
 -D dashboard  (Enable the SeleniumBase Dashboard. Saved at: dashboard.html)
 -D dash-title=STRING  (Set the title shown for the generated dashboard.)
 -D enable-3d-apis  (Enables WebGL and 3D APIs.)
--D swiftshader  (Use Chrome's "--use-gl=swiftshader" feature.)
+-D swiftshader  (Use Chrome's SwiftShader Graphics Library.)
 -D incognito  (Enable Chrome's Incognito mode.)
 -D guest  (Enable Chrome's Guest mode.)
+-D dark  (Enable Chrome's Dark mode.)
 -D devtools  (Open Chrome's DevTools when the browser opens.)
--D reuse-session | -D rs  (Reuse browser session between tests.)
+-D rs | -D reuse-session  (Reuse browser session for all tests.)
+-D rcs | -D reuse-class-session  (Reuse session for tests in class/feature)
 -D crumbs  (Delete all cookies between tests reusing a session.)
 -D disable-beforeunload  (Disable the "beforeunload" event on Chrome.)
 -D window-size=WIDTH,HEIGHT  (Set the browser's starting window size.)
@@ -93,23 +98,23 @@ behave -D agent="User Agent String" -D demo
 -D external-pdf  (Set Chromium "plugins.always_open_pdf_externally":True.)
 -D timeout-multiplier=MULTIPLIER  (Multiplies the default timeout values.)
 """
-
 import ast
 import colorama
 import os
 import re
 import sys
-from seleniumbase.config import settings
-from seleniumbase.core import log_helper
-from seleniumbase.core import download_helper
-from seleniumbase.core import proxy_helper
-from seleniumbase.fixtures import constants
 from seleniumbase import config as sb_config
+from seleniumbase.config import settings
+from seleniumbase.core import download_helper
+from seleniumbase.core import log_helper
+from seleniumbase.core import proxy_helper
+from seleniumbase.core import session_helper
+from seleniumbase.fixtures import constants
+from seleniumbase.fixtures import shared_utils
 
+is_linux = shared_utils.is_linux()
+is_windows = shared_utils.is_windows()
 sb_config.__base_class = None
-is_windows = False
-if sys.platform in ["win32", "win64", "x64"]:
-    is_windows = True
 
 
 def set_base_class(base_class):
@@ -156,15 +161,17 @@ def get_configured_sb(context):
     sb.user_agent = None
     sb.incognito = False
     sb.guest_mode = False
+    sb.dark_mode = False
     sb.devtools = False
     sb.mobile_emulator = False
     sb.device_metrics = None
     sb.extension_zip = None
     sb.extension_dir = None
     sb.binary_location = None
+    sb.driver_version = None
     sb.page_load_strategy = None
     sb.database_env = "test"
-    sb.log_path = "latest_logs" + os.sep
+    sb.log_path = constants.Logs.LATEST + os.sep
     sb.archive_logs = False
     sb.disable_js = False
     sb.disable_csp = False
@@ -175,10 +182,12 @@ def get_configured_sb(context):
     sb.undetectable = False
     sb.uc_cdp_events = False
     sb.uc_subprocess = False
+    sb.log_cdp_events = False
     sb.no_sandbox = False
     sb.disable_gpu = False
     sb._multithreaded = False
     sb._reuse_session = False
+    sb._reuse_class_session = False
     sb._crumbs = False
     sb._disable_beforeunload = False
     sb.visual_baseline = False
@@ -220,6 +229,8 @@ def get_configured_sb(context):
     sb.proxy_string = None
     sb.proxy_bypass_list = None
     sb.proxy_pac_url = None
+    sb.multi_proxy = False
+    sb.host_resolver_rules = None
     sb.enable_3d_apis = False
     sb.swiftshader = False
     sb.ad_block_on = False
@@ -234,6 +245,7 @@ def get_configured_sb(context):
     sb_config._has_logs = None
     sb_config._has_exception = None
     sb_config.save_screenshot = None
+    sb_config.reuse_class_session = None
 
     browsers = set()  # To error if selecting more than one
     valid_browsers = constants.ValidBrowsers.valid_browsers
@@ -414,6 +426,10 @@ def get_configured_sb(context):
         if low_key in ["guest", "guest-mode", "guest_mode"]:
             sb.guest_mode = True
             continue
+        # Handle: -D dark / dark-mode / dark_mode
+        if low_key in ["dark", "dark-mode", "dark_mode"]:
+            sb.dark_mode = True
+            continue
         # Handle: -D devtools / open-devtools / open_devtools
         if low_key in ["devtools", "open-devtools", "open_devtools"]:
             sb.devtools = True
@@ -449,6 +465,13 @@ def get_configured_sb(context):
             if binary_location == "true":
                 binary_location = sb.binary_location  # revert to default
             sb.binary_location = binary_location
+            continue
+        # Handle: -D driver-version=VER / driver_version=VER
+        if low_key in ["driver-version", "driver_version"]:
+            driver_version = userdata[key]
+            if driver_version == "true":
+                driver_version = sb.driver_version  # revert to default
+            sb.driver_version = driver_version
             continue
         # Handle: -D pls=PLS / page-load-strategy=PLS / page_load_strategy=PLS
         if low_key in ["pls", "page-load-strategy", "page_load_strategy"]:
@@ -529,6 +552,10 @@ def get_configured_sb(context):
             sb.uc_subprocess = True
             sb.undetectable = True
             continue
+        # Handle: -D log-cdp-events / log_cdp_events / log-cdp
+        if low_key in ["log-cdp-events", "log_cdp_events", "log-cdp"]:
+            sb.log_cdp_events = True
+            continue
         # Handle: -D no-sandbox / no_sandbox
         if low_key in ["no-sandbox", "no_sandbox"]:
             sb.no_sandbox = True
@@ -540,6 +567,13 @@ def get_configured_sb(context):
         # Handle: -D rs / reuse-session / reuse_session
         if low_key in ["rs", "reuse-session", "reuse_session"]:
             sb._reuse_session = True
+            continue
+        # Handle: -D rcs / rfs / reuse-class-session / reuse-feature-session
+        if low_key in [
+            "rcs", "rfs", "reuse-class-session", "reuse-feature-session"
+        ]:
+            sb._reuse_session = True
+            sb._reuse_class_session = True
             continue
         # Handle: -D crumbs
         if low_key == "crumbs":
@@ -735,6 +769,17 @@ def get_configured_sb(context):
                 proxy_pac_url = sb.proxy_pac_url  # revert to default
             sb.proxy_pac_url = proxy_pac_url
             continue
+        # Handle: -D multi-proxy / multi_proxy
+        if low_key in ["multi-proxy", "multi_proxy"]:
+            sb.multi_proxy = True
+            continue
+        # Handle: -D host-resolver-rules=RULES / host_resolver_rules=RULES
+        if low_key in ["host-resolver-rules", "host_resolver_rules"]:
+            host_resolver_rules = userdata[key]
+            if host_resolver_rules == "true":
+                host_resolver_rules = sb.host_resolver_rules
+            sb.host_resolver_rules = host_resolver_rules
+            continue
         # Handle: -D enable-3d-apis / enable_3d_apis
         if low_key in ["enable-3d-apis", "enable_3d_apis"]:
             sb.enable_3d_apis = True
@@ -800,10 +845,10 @@ def get_configured_sb(context):
             '\n  (Your browser choice was: "%s")\n' % sb.browser
         )
     # The Xvfb virtual display server is for Linux OS Only.
-    if sb.xvfb and "linux" not in sys.platform:
+    if sb.xvfb and not is_linux:
         sb.xvfb = False
     if (
-        "linux" in sys.platform
+        is_linux
         and not sb.headed
         and not sb.headless
         and not sb.headless2
@@ -813,8 +858,8 @@ def get_configured_sb(context):
             '(Linux uses "-D headless" by default. '
             'To override, use "-D headed" / "-D gui". '
             'For Xvfb mode instead, use "-D xvfb". '
-            'Or hide this info with "-D headless",'
-            'or by calling the new "-D headless2".)'
+            "Or you can hide this info by using"
+            '"-D headless" / "-D headless2".)'
         )
         sb.headless = True
     # Recorder Mode can still optimize scripts in --headless2 mode.
@@ -823,6 +868,10 @@ def get_configured_sb(context):
         sb.headless2 = True
     if not sb.headless and not sb.headless2:
         sb.headed = True
+    if sb.browser == "safari" and sb.headless:
+        sb.headless = False  # Safari doesn't support headless mode
+    if sb.save_screenshot_after_test and sb.no_screenshot_after_test:
+        sb.save_screenshot_after_test = False  # "no_screenshot" has priority
     if sb.servername != "localhost":
         # Using Selenium Grid
         # (Set -D server="127.0.0.1" for localhost Grid)
@@ -866,6 +915,7 @@ def get_configured_sb(context):
     sb_config.window_size = sb.window_size
     sb_config.maximize_option = sb.maximize_option
     sb_config.xvfb = sb.xvfb
+    sb_config.reuse_class_session = sb._reuse_class_session
     sb_config.save_screenshot = sb.save_screenshot_after_test
     sb_config.no_screenshot = sb.no_screenshot_after_test
     sb_config._has_logs = False
@@ -906,10 +956,11 @@ def get_configured_sb(context):
     if sb_config.dash_title:
         constants.Dashboard.TITLE = sb_config.dash_title.replace("_", " ")
 
-    log_helper.log_folder_setup(sb.log_path, sb.archive_logs)
+    log_helper.log_folder_setup(
+        constants.Logs.LATEST + "/", sb.archive_logs
+    )
     download_helper.reset_downloads_folder()
     proxy_helper.remove_proxy_zip_if_present()
-
     return sb
 
 
@@ -1094,18 +1145,19 @@ def behave_dashboard_prepare():
         stars = "*" * star_len
         c1 = ""
         cr = ""
-        if "linux" not in sys.platform:
-            colorama.init(autoreset=True)
+        if not is_linux:
+            if is_windows and hasattr(colorama, "just_fix_windows_console"):
+                colorama.just_fix_windows_console()
+            else:
+                colorama.init(autoreset=True)
             c1 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
             cr = colorama.Style.RESET_ALL
         print("Dashboard: %s%s%s\n%s" % (c1, dash_path, cr, stars))
 
 
 def _perform_behave_unconfigure_():
-    from seleniumbase.core import log_helper
-    from seleniumbase.core import proxy_helper
-
-    proxy_helper.remove_proxy_zip_if_present()
+    if hasattr(sb_config, "multi_proxy") and not sb_config.multi_proxy:
+        proxy_helper.remove_proxy_zip_if_present()
     if hasattr(sb_config, "reuse_session") and sb_config.reuse_session:
         # Close the shared browser session
         if sb_config.shared_driver:
@@ -1121,10 +1173,11 @@ def _perform_behave_unconfigure_():
             except Exception:
                 pass
         sb_config.shared_driver = None
-    if hasattr(sb_config, "log_path"):
+    if hasattr(sb_config, "archive_logs"):
         log_helper.archive_logs_if_set(
-            sb_config.log_path, sb_config.archive_logs
+            constants.Logs.LATEST + "/", sb_config.archive_logs
         )
+    log_helper.clear_empty_logs()
     # Dashboard post-processing: Disable time-based refresh and stamp complete
     if not hasattr(sb_config, "dashboard") or not sb_config.dashboard:
         # Done with "behave_unconfigure" unless using the Dashboard
@@ -1197,7 +1250,9 @@ def do_final_driver_cleanup_as_needed():
 
 
 def _perform_behave_terminal_summary_():
-    latest_logs_dir = os.path.join(os.getcwd(), "latest_logs" + os.sep)
+    latest_logs_dir = os.path.join(
+        os.getcwd(), constants.Logs.LATEST + os.sep
+    )
     dash_path = os.path.join(os.getcwd(), "dashboard.html")
     equals_len = len("Dashboard: ") + len(dash_path)
     try:
@@ -1209,8 +1264,11 @@ def _perform_behave_terminal_summary_():
     equals = "=" * (equals_len + 2)
     c2 = ""
     cr = ""
-    if "linux" not in sys.platform:
-        colorama.init(autoreset=True)
+    if not is_linux:
+        if is_windows and hasattr(colorama, "just_fix_windows_console"):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c2 = colorama.Fore.MAGENTA + colorama.Back.LIGHTYELLOW_EX
         cr = colorama.Style.RESET_ALL
     if sb_config.dashboard:
@@ -1252,6 +1310,7 @@ def before_all(context):
 
 def before_feature(context, feature):
     sb_config.behave_feature = feature
+    session_helper.end_reused_class_session_as_needed()
 
 
 def before_scenario(context, scenario):
@@ -1286,6 +1345,7 @@ def after_scenario(context, scenario):
 
 def after_feature(context, feature):
     sb_config.feature = feature
+    session_helper.end_reused_class_session_as_needed()
 
 
 def after_all(context):

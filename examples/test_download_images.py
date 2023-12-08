@@ -41,7 +41,7 @@ class DownloadImages(BaseCase):
         for src in unique_src_values:
             self.open(src)
             if not self.headless and not self.headless2:
-                self.highlight("img", loops=1)
+                self.sleep(0.3)
             image = self.find_element("img")
             if src.startswith("data:") or ";base64" in src:
                 # Special Cases: SVGs, etc. Convert to PNG.

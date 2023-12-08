@@ -37,6 +37,13 @@ ARCHIVE_EXISTING_LOGS = False
 # If False, only the downloads from the most recent run will be saved locally.
 ARCHIVE_EXISTING_DOWNLOADS = False
 
+# If True, the last page screenshot will include the <body> and background.
+# If False, the last page screenshot will only include the <body> section.
+# Depending on the screen size, including a background could make the <body>
+# appear very small in the screenshot, which may require manually zooming in
+# on the <body> to see page details if you decide to include the background.
+SCREENSHOT_WITH_BACKGROUND = False
+
 # Default names for files saved during test failures.
 # (These files will get saved to the "latest_logs/" folder.)
 SCREENSHOT_NAME = "screenshot.png"
@@ -110,6 +117,12 @@ CHROME_START_WIDTH = 1280
 CHROME_START_HEIGHT = 840
 HEADLESS_START_WIDTH = 1440
 HEADLESS_START_HEIGHT = 1880
+
+# If True, hides messages related to downloading drivers.
+# If False, you'll see details about downloading drivers.
+# (This only affects driver downloads coming from tests.)
+# (If calling "sbase get chromedriver", then won't hide.)
+HIDE_DRIVER_DOWNLOADS = False
 
 # #####>>>>>----- MasterQA SETTINGS -----<<<<<#####
 # ##### (Used when importing MasterQA as the parent class)

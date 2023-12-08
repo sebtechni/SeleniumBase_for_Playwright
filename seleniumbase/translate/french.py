@@ -24,6 +24,10 @@ class CasDeBase(BaseCase):
         # double_click(selector)
         return self.double_click(*args, **kwargs)
 
+    def contextuel_cliquer(self, *args, **kwargs):
+        # context_click(selector)
+        return self.context_click(*args, **kwargs)
+
     def cliquer_lentement(self, *args, **kwargs):
         # slow_click(selector)
         return self.slow_click(*args, **kwargs)
@@ -72,6 +76,10 @@ class CasDeBase(BaseCase):
     def vérifier_texte_du_lien(self, *args, **kwargs):
         # assert_link_text(link_text)
         return self.assert_link_text(*args, **kwargs)
+
+    def vérifier_texte_non_vide(self, *args, **kwargs):
+        # assert_non_empty_text(selector)
+        return self.assert_non_empty_text(*args, **kwargs)
 
     def vérifier_texte_pas_affiché(self, *args, **kwargs):
         # assert_text_not_visible(text, selector)
@@ -357,9 +365,13 @@ class CasDeBase(BaseCase):
         # scroll_to_bottom()
         return self.scroll_to_bottom(*args, **kwargs)
 
-    def planer_au_dessus_et_cliquer(self, *args, **kwargs):
+    def passer_la_souris_et_cliquer(self, *args, **kwargs):
         # hover_and_click(hover_selector, click_selector)
         return self.hover_and_click(*args, **kwargs)
+
+    def survol_de_la_souris(self, *args, **kwargs):
+        # hover(selector)
+        return self.hover(*args, **kwargs)
 
     def est_il_sélectionné(self, *args, **kwargs):
         # is_selected(selector)

@@ -18,6 +18,7 @@ Output:
       Launches SeleniumBase Commander | GUI for pytest.
 """
 import colorama
+import os
 import subprocess
 import sys
 
@@ -27,12 +28,9 @@ if sys.version_info <= (3, 7):
         "\n* SBase Commander requires Python 3.7 or newer!"
         "\n** You are currently using Python %s" % current_version
     )
+from seleniumbase.fixtures import shared_utils
 import tkinter as tk  # noqa: E402
 from tkinter.scrolledtext import ScrolledText  # noqa: E402
-
-is_windows = False
-if sys.platform in ["win32", "win64", "x64"]:
-    is_windows = True
 
 
 def set_colors(use_colors):
@@ -44,7 +42,13 @@ def set_colors(use_colors):
     c5 = ""
     cr = ""
     if use_colors:
-        colorama.init(autoreset=True)
+        if (
+            shared_utils.is_windows()
+            and hasattr(colorama, "just_fix_windows_console")
+        ):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c0 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
         c1 = colorama.Fore.BLUE + colorama.Back.LIGHTGREEN_EX
         c2 = colorama.Fore.RED + colorama.Back.LIGHTYELLOW_EX
@@ -78,13 +82,21 @@ def do_pytest_run(
     save_screenshots,
     additional_options,
 ):
+    cleaned_tests = []
+    for test in tests:
+        if test.startswith("(FILE)  "):
+            clean_test = test.split("(FILE)  ")[1].split("  =>  ")[0]
+            cleaned_tests.append(clean_test)
+        else:
+            cleaned_tests.append(test)
+    tests = cleaned_tests
     total_tests = len(tests)
     total_selected_tests = 0
     for selected_test in selected_tests:
         if selected_tests[selected_test].get():
             total_selected_tests += 1
 
-    full_run_command = "pytest"
+    full_run_command = '"%s" -m pytest' % sys.executable
     if total_selected_tests == 0 or total_tests == total_selected_tests:
         if command_string:
             full_run_command += " "
@@ -93,7 +105,12 @@ def do_pytest_run(
         for test_number, test in enumerate(tests):
             if selected_tests[test_number].get():
                 full_run_command += " "
-                full_run_command += test
+                if ' ' not in test:
+                    full_run_command += test
+                elif '"' not in test:
+                    full_run_command += '"%s"' % test
+                else:
+                    full_run_command += test.replace(" ", "\\ ")
 
     if "(--edge)" in browser_string:
         full_run_command += " --edge"
@@ -106,6 +123,10 @@ def do_pytest_run(
         full_run_command += " --rs"
     elif "(--rs --crumbs)" in rs_string:
         full_run_command += " --rs --crumbs"
+    elif "(--rcs)" in rs_string:
+        full_run_command += " --rcs"
+    elif "(--rcs --crumbs)" in rs_string:
+        full_run_command += " --rcs --crumbs"
 
     if "(-n=2)" in thread_string:
         full_run_command += " -n=2"
@@ -113,6 +134,14 @@ def do_pytest_run(
         full_run_command += " -n=3"
     elif "(-n=4)" in thread_string:
         full_run_command += " -n=4"
+    elif "(-n=5)" in thread_string:
+        full_run_command += " -n=5"
+    elif "(-n=6)" in thread_string:
+        full_run_command += " -n=6"
+    elif "(-n=7)" in thread_string:
+        full_run_command += " -n=7"
+    elif "(-n=8)" in thread_string:
+        full_run_command += " -n=8"
 
     if demo_mode:
         full_run_command += " --demo"
@@ -128,7 +157,7 @@ def do_pytest_run(
 
     if headless:
         full_run_command += " --headless"
-    elif "linux" in sys.platform:
+    elif shared_utils.is_linux():
         full_run_command += " --gui"
 
     if save_screenshots:
@@ -154,10 +183,13 @@ def do_pytest_run(
     send_window_to_front(root)
 
 
-def create_tkinter_gui(tests, command_string):
+def create_tkinter_gui(tests, command_string, files, solo_tests):
     root = tk.Tk()
     root.title("SeleniumBase Commander | GUI for pytest")
-    root.minsize(820, 658)
+    if shared_utils.is_windows():
+        root.minsize(820, 696)
+    else:
+        root.minsize(820, 702)
     tk.Label(root, text="").pack()
 
     options_list = [
@@ -165,7 +197,7 @@ def create_tkinter_gui(tests, command_string):
         "Use Edge Browser  (--edge)",
         "Use Firefox Browser  (--firefox)",
     ]
-    if "darwin" in sys.platform:
+    if shared_utils.is_mac():
         options_list.append("Use Safari Browser  (--safari)")
     brx = tk.StringVar(root)
     brx.set(options_list[0])
@@ -174,11 +206,13 @@ def create_tkinter_gui(tests, command_string):
 
     options_list = [
         "New Session Per Test  (Default)",
-        "Reuse Session for all tests in thread  (--rs)",
-        "Reuse Session / clear cookies  (--rs --crumbs)",
+        "Reuse Session for ALL tests in thread  (--rs)",
+        "Reuse Session and also clear cookies  (--rs --crumbs)",
+        "Reuse Session for tests with same CLASS  (--rcs)",
+        "Reuse Session for class and clear cookies  (--rcs --crumbs)",
     ]
     rsx = tk.StringVar(root)
-    rsx.set(options_list[2])
+    rsx.set(options_list[0])
     question_menu = tk.OptionMenu(root, rsx, *options_list)
     question_menu.pack()
 
@@ -188,6 +222,15 @@ def create_tkinter_gui(tests, command_string):
         "Number of Threads: 3  (-n=3)",
         "Number of Threads: 4  (-n=4)",
     ]
+    try:
+        if int(os.cpu_count()) >= 8:
+            options_list.append("Number of Threads: 5  (-n=5)")
+            options_list.append("Number of Threads: 6  (-n=6)")
+            options_list.append("Number of Threads: 7  (-n=7)")
+            options_list.append("Number of Threads: 8  (-n=8)")
+    except Exception:
+        pass
+
     ntx = tk.StringVar(root)
     ntx.set(options_list[0])
     question_menu = tk.OptionMenu(root, ntx, *options_list)
@@ -240,13 +283,21 @@ def create_tkinter_gui(tests, command_string):
 
     tk.Label(root, text="").pack()
     run_display = (
-        "Select from %s tests:  "
-        "(If NO TESTS are selected, then ALL TESTS will run)"
-        % len(tests)
+        "Select from %s rows (%s files with %s tests):  "
+        "(All tests will run if none are selected)"
+        % (len(tests), len(files), len(solo_tests))
     )
-    if len(tests) == 1:
-        run_display = "Only ONE TEST was found:  (Will run automatically)"
-    tk.Label(root, text=run_display, fg="blue").pack()
+    if len(solo_tests) == 1:
+        run_display = "Only ONE TEST was found and will be run:"
+        tests = solo_tests
+    elif len(files) == 1:
+        run_display = (
+            "Select from %s tests:  "
+            "(All tests will run if none are selected)"
+            % (len(solo_tests))
+        )
+        tests = solo_tests
+    tk.Label(root, text=run_display, bg="yellow", fg="magenta").pack()
     text_area = ScrolledText(
         root, width=100, height=12, wrap="word", state=tk.DISABLED
     )
@@ -257,13 +308,16 @@ def create_tkinter_gui(tests, command_string):
         row += " " * 200
         ara[count] = tk.IntVar()
         cb = None
-        if not is_windows:
+        if shared_utils.is_windows():
             cb = tk.Checkbutton(
                 text_area,
                 text=(row),
                 bg="white",
+                fg="black",
                 anchor="w",
                 pady=0,
+                borderwidth=1,
+                highlightthickness=1,
                 variable=ara[count],
             )
         else:
@@ -271,10 +325,9 @@ def create_tkinter_gui(tests, command_string):
                 text_area,
                 text=(row),
                 bg="white",
+                fg="black",
                 anchor="w",
                 pady=0,
-                borderwidth=0,
-                highlightthickness=0,
                 variable=ara[count],
             )
         text_area.window_create("end", window=cb)
@@ -287,7 +340,7 @@ def create_tkinter_gui(tests, command_string):
     tk.Label(
         root,
         text='Additional "pytest" Options:  (Eg. "--incognito --slow")',
-        fg="blue",
+        bg="yellow", fg="blue",
     ).pack()
     entry = tk.Entry(root, textvariable=aopts)
     entry.pack()
@@ -353,7 +406,7 @@ def create_tkinter_gui(tests, command_string):
 
 def main():
     use_colors = True
-    if "linux" in sys.platform:
+    if shared_utils.is_linux():
         use_colors = False
     c0, c1, c2, c3, c4, c5, cr = set_colors(use_colors)
     command_args = sys.argv[2:]
@@ -379,7 +432,8 @@ def main():
     print(message)
 
     proc = subprocess.Popen(
-        'pytest --co -q --rootdir="./" %s' % command_string,
+        '"%s" -m pytest --collect-only -q --rootdir="./" %s'
+        % (sys.executable, command_string),
         stdout=subprocess.PIPE,
         shell=True,
     )
@@ -390,7 +444,11 @@ def main():
         print(error_msg)
         return
     tests = []
-    for row in output.decode("utf-8").split("\n"):
+    if shared_utils.is_windows():
+        output = output.decode("latin1")
+    else:
+        output = output.decode("utf-8")
+    for row in output.replace("\r", "").split("\n"):
         if ("::") in row:
             tests.append(row)
     if not tests:
@@ -398,8 +456,25 @@ def main():
         error_msg = c5 + "ERROR: " + error_msg + cr
         print(error_msg)
         return
+    groups = []
+    for row in tests:
+        if row.count("::") >= 1:
+            g_name = "(FILE)  %s" % row.split("::")[0]
+            groups.append(g_name)
+    files = []
+    used_files = []
+    for row in groups:
+        if row not in used_files:
+            used_files.append(row)
+            plural = "s"
+            if groups.count(row) == 1:
+                plural = ""
+            f_row = "%s  =>  (%s Test%s)" % (row, groups.count(row), plural)
+            files.append(f_row)
+    solo_tests = tests
+    tests = [*files, *tests]
 
-    create_tkinter_gui(tests, command_string)
+    create_tkinter_gui(tests, command_string, files, solo_tests)
 
 
 if __name__ == "__main__":

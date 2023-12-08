@@ -1,6 +1,7 @@
 """Messy Raw Selenium Example - (ONLY Selenium / NO SeleniumBase)"""
 import sys
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from unittest import TestCase
@@ -21,7 +22,8 @@ class MessyRawSelenium(TestCase):
             "profile.password_manager_enabled": False,
         }
         options.add_experimental_option("prefs", prefs)
-        self.driver = webdriver.Chrome(options=options)
+        service = Service(service_args=["--disable-build-check"])
+        self.driver = webdriver.Chrome(options=options, service=service)
 
     def tearDown(self):
         if self.driver:
@@ -63,11 +65,11 @@ class MessyRawSelenium(TestCase):
         element.submit()
         self.wait_for_element_visible("div.inventory_list")
         element = self.wait_for_element_visible("span.title")
-        self.assertEqual(element.text, "PRODUCTS")
+        self.assertEqual(element.text, "Products")
         self.wait_for_element_clickable('button[name*="backpack"]').click()
         self.wait_for_element_clickable("#shopping_cart_container a").click()
         element = self.wait_for_element_visible("span.title")
-        self.assertEqual(element.text, "YOUR CART")
+        self.assertEqual(element.text, "Your Cart")
         element = self.wait_for_element_visible("div.cart_item")
         self.assertIn("Backpack", element.text)
         self.wait_for_element_clickable("#remove-sauce-labs-backpack").click()

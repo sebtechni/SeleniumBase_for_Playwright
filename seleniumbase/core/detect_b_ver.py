@@ -49,12 +49,11 @@ PATTERN = {
 
 
 def os_name():
-    pl = sys.platform
-    if pl == "linux" or pl == "linux2":
+    if "linux" in sys.platform:
         return OSType.LINUX
-    elif pl == "darwin":
+    elif "darwin" in sys.platform:
         return OSType.MAC
-    elif pl == "win32":
+    elif "win32" in sys.platform:
         return OSType.WIN
     else:
         raise Exception("Could not determine the OS type!")
@@ -97,6 +96,109 @@ def linux_browser_apps_to_cmd(*apps):
     )
 
 
+def chrome_on_linux_path(prefer_chromium=False):
+    if os_name() != "linux":
+        return ""
+    if prefer_chromium:
+        paths = ["/bin/chromium", "/bin/chromium-browser"]
+        for path in paths:
+            if os.path.exists(path) and os.access(path, os.X_OK):
+                return path
+    paths = ["/bin/google-chrome", "/bin/google-chrome-stable"]
+    for path in paths:
+        if os.path.exists(path) and os.access(path, os.X_OK):
+            return path
+    paths = os.environ["PATH"].split(os.pathsep)
+    binaries = []
+    binaries.append("google-chrome")
+    binaries.append("google-chrome-stable")
+    binaries.append("chrome")
+    binaries.append("chromium")
+    binaries.append("chromium-browser")
+    binaries.append("google-chrome-beta")
+    binaries.append("google-chrome-dev")
+    binaries.append("google-chrome-unstable")
+    for binary in binaries:
+        for path in paths:
+            full_path = os.path.join(path, binary)
+            if os.path.exists(full_path) and os.access(full_path, os.X_OK):
+                return full_path
+    return "/usr/bin/google-chrome"
+
+
+def edge_on_linux_path():
+    if os_name() != "linux":
+        return ""
+    paths = os.environ["PATH"].split(os.pathsep)
+    binaries = []
+    binaries.append("microsoft-edge")
+    binaries.append("microsoft-edge-stable")
+    binaries.append("microsoft-edge-beta")
+    binaries.append("microsoft-edge-dev")
+    for binary in binaries:
+        for path in paths:
+            full_path = os.path.join(path, binary)
+            if os.path.exists(full_path) and os.access(full_path, os.X_OK):
+                return full_path
+    return "/usr/bin/microsoft-edge"
+
+
+def chrome_on_windows_path():
+    if os_name() != "win32":
+        return ""
+    candidates = []
+    for item in map(
+        os.environ.get,
+        (
+            "PROGRAMFILES",
+            "PROGRAMFILES(X86)",
+            "LOCALAPPDATA",
+            "PROGRAMW6432",
+        ),
+    ):
+        for subitem in (
+            "Google/Chrome/Application",
+            "Google/Chrome Beta/Application",
+            "Google/Chrome Canary/Application",
+        ):
+            try:
+                candidates.append(os.sep.join((item, subitem, "chrome.exe")))
+            except TypeError:
+                pass
+    for candidate in candidates:
+        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+            return os.path.normpath(candidate)
+    return ""
+
+
+def edge_on_windows_path():
+    if os_name() != "win32":
+        return ""
+    candidates = []
+    for item in map(
+        os.environ.get,
+        (
+            "PROGRAMFILES",
+            "PROGRAMFILES(X86)",
+            "LOCALAPPDATA",
+            "PROGRAMW6432",
+        ),
+    ):
+        for subitem in (
+            "Microsoft/Edge/Application",
+            "Microsoft/Edge Beta/Application",
+            "Microsoft/Edge Canary/Application",
+        ):
+            try:
+                candidates.append(os.sep.join((item, subitem, "msedge.exe")))
+            except TypeError:
+                pass
+    for candidate in candidates:
+        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+            return os.path.normpath(candidate)
+    return ""
+
+
 def windows_browser_apps_to_cmd(*apps):
     """Create analogue of browser --version command for windows."""
     powershell = determine_powershell()
@@ -107,19 +209,43 @@ def windows_browser_apps_to_cmd(*apps):
     return '%s -NoProfile "%s"' % (powershell, script)
 
 
+def get_binary_location(browser_type, prefer_chromium=False):
+    """Return the full path of the browser binary.
+    If going for better results in UC Mode, use: prefer_chromium=True"""
+    cmd_mapping = {
+        ChromeType.GOOGLE: {
+            OSType.LINUX: chrome_on_linux_path(prefer_chromium),
+            OSType.MAC: r"/Applications/Google Chrome.app"
+                        r"/Contents/MacOS/Google Chrome",
+            OSType.WIN: chrome_on_windows_path(),
+        },
+        ChromeType.MSEDGE: {
+            OSType.LINUX: edge_on_linux_path(),
+            OSType.MAC: r"/Applications/Microsoft Edge.app"
+                        r"/Contents/MacOS/Microsoft Edge",
+            OSType.WIN: edge_on_windows_path(),
+        },
+    }
+    return cmd_mapping[browser_type][os_name()]
+
+
 def get_browser_version_from_binary(binary_location):
     try:
         if binary_location.count(r"\ ") != binary_location.count(" "):
             binary_location = binary_location.replace(" ", r"\ ")
         cmd_mapping = binary_location + " --version"
         pattern = r"\d+\.\d+\.\d+"
+        quad_pattern = r"\d+\.\d+\.\d+\.\d+"
+        quad_version = read_version_from_cmd(cmd_mapping, quad_pattern)
+        if quad_version and len(str(quad_version)) >= 9:  # Eg. 115.0.0.0
+            return quad_version
         version = read_version_from_cmd(cmd_mapping, pattern)
         return version
     except Exception:
         return None
 
 
-def get_browser_version_from_os(browser_type=None):
+def get_browser_version_from_os(browser_type):
     """Return installed browser version."""
     cmd_mapping = {
         ChromeType.GOOGLE: {
@@ -128,9 +254,10 @@ def get_browser_version_from_os(browser_type=None):
                 "google-chrome-stable",
                 "chrome",
                 "chromium",
+                "chromium-browser",
                 "google-chrome-beta",
                 "google-chrome-dev",
-                "chromium-browser",
+                "google-chrome-unstable",
             ),
             OSType.MAC: r"/Applications/Google\ Chrome.app"
                         r"/Contents/MacOS/Google\ Chrome --version",
@@ -209,6 +336,10 @@ def get_browser_version_from_os(browser_type=None):
     try:
         cmd_mapping = cmd_mapping[browser_type][os_name()]
         pattern = PATTERN[browser_type]
+        quad_pattern = r"\d+\.\d+\.\d+\.\d+"
+        quad_version = read_version_from_cmd(cmd_mapping, quad_pattern)
+        if quad_version and len(str(quad_version)) >= 9:  # Eg. 115.0.0.0
+            return quad_version
         version = read_version_from_cmd(cmd_mapping, pattern)
         return version
     except Exception:

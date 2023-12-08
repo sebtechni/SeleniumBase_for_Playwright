@@ -39,9 +39,14 @@ sbase grid-node start --hub=127.0.0.1
 import colorama
 import sys
 import time
+from seleniumbase.config import settings
 from seleniumbase.fixtures import constants
+from seleniumbase.fixtures import shared_utils
 
-colorama.init(autoreset=True)
+if shared_utils.is_windows() and hasattr(colorama, "just_fix_windows_console"):
+    colorama.just_fix_windows_console()
+else:
+    colorama.init(autoreset=True)
 
 
 def show_usage():
@@ -105,7 +110,7 @@ def show_basic_usage():
     sc += "      download server  (Get Selenium Grid JAR file)\n"
     sc += "      grid-hub         [start|stop] [OPTIONS]\n"
     sc += "      grid-node        [start|stop] --hub=[HOST/IP]\n"
-    sc += ' * (EXAMPLE: "sbase get chromedriver latest") *\n'
+    sc += ' * (EXAMPLE: "sbase get chromedriver") *\n'
     sc += ""
     if "linux" not in sys.platform:
         c1 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
@@ -129,13 +134,11 @@ def show_install_usage():
     print("           OR:    sbase install [DRIVER_NAME] [OPTIONS]")
     print("           OR:        sbase get [DRIVER_NAME] [OPTIONS]")
     print("                 (Drivers: chromedriver, geckodriver, edgedriver")
-    print("                           iedriver, operadriver, uc_driver)")
+    print("                           iedriver, uc_driver)")
     print("  Options:")
     print("           VERSION         Specify the version to download.")
     print("                           Tries to detect the needed version.")
-    print('                           Use "latest" for the latest version.')
-    print('                           Use "latest-1" for one less than that.')
-    print("                           For chromedriver or edgedriver,")
+    print("                           If using chromedriver or edgedriver,")
     print("                           you can use the major version integer.")
     print()
     print("           -p OR --path    Also copy the driver to /usr/local/bin")
@@ -143,12 +146,11 @@ def show_install_usage():
     print("           sbase get chromedriver")
     print("           sbase get geckodriver")
     print("           sbase get edgedriver")
-    print("           sbase get chromedriver 109")
-    print("           sbase get chromedriver 109.0.5414.74")
-    print("           sbase get chromedriver latest")
-    print("           sbase get chromedriver latest-1")
+    print("           sbase get chromedriver 114")
+    print("           sbase get chromedriver 114.0.5735.90")
+    print("           sbase get chromedriver stable")
+    print("           sbase get chromedriver beta")
     print("           sbase get chromedriver -p")
-    print("           sbase get chromedriver latest -p")
     print("  Output:")
     print("           Downloads the webdriver to seleniumbase/drivers/")
     print("           (chromedriver is required for Chrome automation)")
@@ -260,21 +262,29 @@ def show_mkfile_usage():
     print("  Options:")
     print("           -b / --basic  (Basic boilerplate / single-line test)")
     print("           -r / --rec  (adds Pdb+ breakpoint for Recorder Mode)")
+    print("           --url=URL  (makes the test start on a specific page)")
     print("  Language Options:")
     print("           --en / --English    |    --zh / --Chinese")
     print("           --nl / --Dutch      |    --fr / --French")
     print("           --it / --Italian    |    --ja / --Japanese")
     print("           --ko / --Korean     |    --pt / --Portuguese")
     print("           --ru / --Russian    |    --es / --Spanish")
+    print("  Syntax Formats:")
+    print("           --bc / --basecase       (BaseCase class inheritance)")
+    print("           --pf / --pytest-fixture          (sb pytest fixture)")
+    print("           --cf / --class-fixture   (class + sb pytest fixture)")
+    print("           --cm / --context-manager        (SB context manager)")
+    print("           --dc / --driver-context      (DriverContext manager)")
+    print("           --dm / --driver-manager             (Driver manager)")
     print("  Output:")
     print("           Creates a new SBase test file with boilerplate code.")
     print("           If the file already exists, an error is raised.")
-    print("           By default, uses English mode and creates a")
-    print("           boilerplate with the 5 most common SeleniumBase")
-    print('           methods, which are "open", "type", "click",')
-    print('           "assert_element", and "assert_text". If using the')
-    print('           basic boilerplate option, only the "open" method')
-    print("           is included.")
+    print("           By default, uses English with BaseCase inheritance,")
+    print("           and creates a boilerplate with common SeleniumBase")
+    print('           methods: "open", "type", "click", "assert_element",')
+    print('           and "assert_text". If using the basic boilerplate')
+    print('           option, only the "open" method is included. Only the')
+    print("           BaseCase format supports Languages or Recorder Mode.")
     print("")
 
 
@@ -416,8 +426,7 @@ def show_convert_usage():
     print("           Converts a Selenium IDE exported WebDriver unittest")
     print("           file into a SeleniumBase file. Adds _SB to the new")
     print("           file name while keeping the original file intact.")
-    print("           Works with Katalon Recorder scripts.")
-    print("           See: http://www.katalon.com/automation-recorder")
+    print("           (Works with Katalon Recorder Selenium scripts.)")
     print("")
 
 
@@ -717,15 +726,18 @@ def show_methods():
     sbm += "*.type(selector, text) => Update the field with the text.\n"
     sbm += "*.click(selector) => Click the element with the selector.\n"
     sbm += "*.click_link(link_text) => Click the link containing text.\n"
-    sbm += "*.go_back() => Navigate back to the previous URL.\n"
+    sbm += "*.check_if_unchecked(selector) => Check checkbox if unchecked.\n"
+    sbm += "*.uncheck_if_checked(selector) => Uncheck checkbox if checked.\n"
     sbm += "*.select_option_by_text(dropdown_selector, option)\n"
     sbm += "*.hover_and_click(hover_selector, click_selector)\n"
     sbm += "*.drag_and_drop(drag_selector, drop_selector)\n"
+    sbm += "*.choose_file(selector, file_path) => Choose a file to upload.\n"
     sbm += "*.get_text(selector) => Get the text from the element.\n"
     sbm += "*.get_current_url() => Get the URL of the current page.\n"
     sbm += "*.get_page_source() => Get the HTML of the current page.\n"
     sbm += "*.get_attribute(selector, attribute) => Get element attribute.\n"
     sbm += "*.get_title() => Get the title of the current page.\n"
+    sbm += "*.go_back() => Navigate to the previous page in history.\n"
     sbm += "*.switch_to_frame(frame) => Switch into the iframe container.\n"
     sbm += "*.switch_to_default_content() => Exit all iframe containers.\n"
     sbm += "*.switch_to_parent_frame() => Exit from the current iframe.\n"
@@ -736,13 +748,20 @@ def show_methods():
     sbm += "*.switch_to_driver(driver) => Switch to the browser driver.\n"
     sbm += "*.switch_to_default_driver() => Switch to the original driver.\n"
     sbm += "*.wait_for_element(selector) => Wait until element is visible.\n"
+    sbm += "*.wait_for_element_present(selector) => Until element in HTML.\n"
     sbm += "*.is_element_visible(selector) => Return element visibility.\n"
+    sbm += "*.is_element_present(selector) => Return element is in HTML.\n"
     sbm += "*.is_text_visible(text, selector) => Return text visibility.\n"
+    sbm += "*.is_checked(selector) => Return whether the box is checked.\n"
     sbm += "*.sleep(seconds) => Do nothing for the given amount of time.\n"
     sbm += "*.save_screenshot(name) => Save a screenshot in .png format.\n"
     sbm += "*.assert_element(selector) => Verify the element is visible.\n"
     sbm += "*.assert_text(text, selector) => Verify text in the element.\n"
+    sbm += "*.assert_exact_text(text, selector) => Verify text is exact.\n"
+    sbm += "*.assert_url(url) => Verify that the current URL is the URL.\n"
+    sbm += "*.assert_url_contains(substring) => Verify substring in URL.\n"
     sbm += "*.assert_title(title) => Verify the title of the web page.\n"
+    sbm += "*.assert_title_contains(substring) => Verify STR in title.\n"
     sbm += "*.assert_downloaded_file(file) => Verify file was downloaded.\n"
     sbm += "*.assert_no_404_errors() => Verify there are no broken links.\n"
     sbm += "*.assert_no_js_errors() => Verify there are no JS errors.\n"
@@ -769,17 +788,20 @@ def show_options():
     line = '(Some options are Chromium-specific, e.g. "--guest --mobile")'
     print(line)
     op = "\n"
-    op += '--browser=BROWSER  (The web browser to use. Default is "chrome")\n'
-    op += "--headless  (Run tests headlessly. Default mode on Linux OS.)\n"
+    op += '--browser=BROWSER  (Choice of web browser. Default is "chrome".)\n'
+    op += "--edge / --firefox / --safari  (Shortcut for browser selection.)\n"
+    op += "--headless  (Run tests headlessly. Default setting on Linux OS.)\n"
     op += "--demo  (Slow down and visually see test actions as they occur.)\n"
     op += "--slow  (Slow down the automation. Faster than using Demo Mode.)\n"
-    op += "--reuse-session / --rs  (Reuse browser session between tests.)\n"
+    op += "--rs / --reuse-session  (Reuse browser session between tests.)\n"
+    op += "--reuse-class-session / --rcs  (RS, but for class tests only.)\n"
     op += "--crumbs  (Clear all cookies between tests reusing a session.)\n"
     op += "--maximize  (Start tests with the web browser window maximized.)\n"
     op += "--dashboard  (Enable SeleniumBase's Dashboard at dashboard.html)\n"
-    op += "--uc  (Enable undetected-chromedriver to evade bot-detection.)\n"
-    op += "--incognito  (Enable Chromium's Incognito mode.)\n"
-    op += "--guest  (Enable Chromium's Guest mode.)\n"
+    op += "--incognito  (Enable Chromium's Incognito Mode.)\n"
+    op += "--guest  (Enable Chromium's Guest Mode.)\n"
+    op += "--dark  (Enable Chromium's Dark Mode.)\n"
+    op += "--uc  (Use undetected-chromedriver to evade detection.)\n"
     op += "-m=MARKER  (Run tests with the specified pytest marker.)\n"
     op += "-n=NUM  (Multithread the tests using that many threads.)\n"
     op += "-v  (Verbose mode. Print the full names of each test run.)\n"
@@ -794,10 +816,13 @@ def show_options():
     op += "      |  return / r: Run until method returns. j: Jump to line. |\n"
     op += "      | where / w: Show stack spot. u: Up stack. d: Down stack. |\n"
     op += "      | longlist / ll: See code. dir(): List namespace objects. |\n"
-    op += "--final-debug  (Enter Final Debug Mode after each test ends.)\n"
-    op += "--recorder  (Record browser actions to generate test scripts.)\n"
+    op += "--help / -h  (Display list of all available pytest options.)\n"
+    op += "--ftrace / --final-trace  (Enter Debug Mode after any test.)\n"
+    op += "--recorder / --rec  (Save browser actions as Python scripts.)\n"
+    op += "--rec-behave / --rec-gherkin  (Save actions as Gherkin code.)\n"
+    op += "--rec-print  (Display recorded scripts when they are created.)\n"
     op += "--save-screenshot  (Save a screenshot at the end of each test.)\n"
-    op += "--archive-logs  (Archive old log files instead of deleting them.)\n"
+    op += "--archive-logs  (Archive logs after tests to prevent deletion.)\n"
     op += "--check-js  (Check for JavaScript errors after page loads.)\n"
     op += "--start-page=URL  (The browser start page when tests begin.)\n"
     op += "--agent=STRING  (Modify the web browser's User-Agent string.)\n"
@@ -852,9 +877,10 @@ def show_behave_options():
     op += "-D crumbs  (Clear all cookies between tests reusing a session.)\n"
     op += "-D maximize  (Start tests with the web browser window maximized.)\n"
     op += "-D dashboard  (Enable SeleniumBase's Dashboard at dashboard.html)\n"
-    op += "-D uc  (Enable undetected-chromedriver to evade bot-detection.)\n"
-    op += "-D incognito  (Enable Chromium's Incognito mode.)\n"
-    op += "-D guest  (Enable Chromium's Guest mode.)\n"
+    op += "-D incognito  (Enable Chromium's Incognito Mode.)\n"
+    op += "-D guest  (Enable Chromium's Guest Mode.)\n"
+    op += "-D dark  (Enable Chromium's Dark Mode.)\n"
+    op += "-D uc  (Use undetected-chromedriver to evade detection.)\n"
     op += "--no-snippets / -q  (Quiet mode. Don't print snippets.)\n"
     op += "--dry-run / -d  (Dry run. Only show discovered tests.)\n"
     op += "--stop  (Stop running tests after the first failure is reached.)\n"
@@ -865,6 +891,7 @@ def show_behave_options():
     op += "      | where / w: Show stack spot. u: Up stack. d: Down stack. |\n"
     op += "      | longlist / ll: See code. dir(): List namespace objects. |\n"
     op += "-D recorder  (Record browser actions to generate test scripts.)\n"
+    op += "-D rec-print  (Display recorded scripts when they are created.)\n"
     op += "-D save-screenshot  (Save a screenshot at the end of each test.)\n"
     op += "-D archive-logs  (Archive log files instead of deleting them.)\n"
     op += "-D check-js  (Check for JavaScript errors after page loads.)\n"
@@ -954,7 +981,18 @@ def main():
             need_another_retry = False
             retry_msg_1 = "* Unable to download driver! Retrying in 3s..."
             retry_msg_2 = "** Unable to download driver! Retrying in 5s..."
+            if " --proxy=" in " ".join(sys.argv):
+                from seleniumbase.core import proxy_helper
+
+                for arg in sys.argv:
+                    if arg.startswith("--proxy="):
+                        proxy_string = arg.split("--proxy=")[1]
+                        if "@" in proxy_string:
+                            proxy_string = proxy_string.split("@")[1]
+                        proxy_helper.validate_proxy_string(proxy_string)
+                        break
             try:
+                settings.HIDE_DRIVER_DOWNLOADS = False
                 sb_install.main()
             except Exception as e:
                 invalid_run_cmd = constants.Warnings.INVALID_RUN_COMMAND
@@ -1296,7 +1334,6 @@ def main():
         show_detailed_help()
     else:
         show_usage()
-        colorama.init(autoreset=True)
         c5 = colorama.Fore.RED + colorama.Back.LIGHTYELLOW_EX
         c7 = colorama.Fore.BLACK + colorama.Back.MAGENTA
         cr = colorama.Style.RESET_ALL

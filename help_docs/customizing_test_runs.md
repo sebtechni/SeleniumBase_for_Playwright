@@ -11,7 +11,7 @@
 pytest my_first_test.py
 
 # Run a test in Firefox
-pytest test_swag_labs.py --browser=firefox
+pytest test_swag_labs.py --firefox
 
 # Run a test in Demo Mode (highlight assertions)
 pytest test_demo_site.py --demo
@@ -20,13 +20,13 @@ pytest test_demo_site.py --demo
 pytest test_demo_site.py --headless
 
 # Run tests multi-threaded using [n] threads
-pytest test_suite.py -n=4
+pytest test_suite.py -n4
 
-# Reuse the browser session for all tests ("--rs")
-pytest test_suite.py --reuse-session
+# Reuse the browser session for all tests ("--reuse-session")
+pytest test_suite.py --rs
 
 # Reuse the browser session, but erase cookies between tests
-pytest test_suite.py --reuse-session --crumbs
+pytest test_suite.py --rs --crumbs
 
 # Create a real-time dashboard for test results
 pytest test_suite.py --dashboard
@@ -73,6 +73,9 @@ pytest test_swag_labs.py --mobile
 # Run mobile tests specifying CSS Width, CSS Height, and Pixel-Ratio
 pytest test_swag_labs.py --mobile --metrics="360,640,2"
 
+# Run a test with an option to evade bot-detection services
+pytest verify_undetected.py --uc
+
 # Run tests while changing SeleniumBase default settings
 pytest my_first_test.py --settings-file=custom_settings.py
 ```
@@ -88,7 +91,8 @@ pytest my_first_test.py --settings-file=custom_settings.py
 -q  # Quiet mode. Print fewer details in the console output when running tests.
 -x  # Stop running the tests after the first failure is reached.
 --html=report.html  # Creates a detailed pytest-html report after tests finish.
---collect-only | --co  # Show what tests would get run. (Without running them)
+--co | --collect-only  # Show what tests would get run. (Without running them)
+--co -q  # (Both options together!) - Do a dry run with full test names shown.
 -n=NUM  # Multithread the tests using that many threads. (Speed up test runs!)
 -s  # See print statements. (Should be on by default with pytest.ini present.)
 --junit-xml=report.xml  # Creates a junit-xml report after tests finish.
@@ -105,8 +109,6 @@ pytest my_first_test.py --settings-file=custom_settings.py
 --edge  # (Shortcut for "--browser=edge".)
 --firefox  # (Shortcut for "--browser=firefox".)
 --safari  # (Shortcut for "--browser=safari".)
---cap-file=FILE  # (The web browser's desired capabilities to use.)
---cap-string=STRING  # (The web browser's desired capabilities to use.)
 --settings-file=FILE  # (Override default SeleniumBase settings.)
 --env=ENV  # (Set the test env. Access with "self.env" in tests.)
 --account=STR  # (Set account. Access with "self.account" in tests.)
@@ -119,11 +121,15 @@ pytest my_first_test.py --settings-file=custom_settings.py
 --protocol=PROTOCOL  # (The Selenium Grid protocol: http|https.)
 --server=SERVER  # (The Selenium Grid server/IP used for tests.)
 --port=PORT  # (The Selenium Grid port used by the test server.)
---proxy=SERVER:PORT  # (Connect to a proxy server:port for tests.)
---proxy=USERNAME:PASSWORD@SERVER:PORT  # (Use authenticated proxy server.)
---proxy-bypass-list=STRING  # (";"-separated hosts to bypass, Eg "*.foo.com")
+--cap-file=FILE  # (The web browser's desired capabilities to use.)
+--cap-string=STRING  # (The web browser's desired capabilities to use.)
+--proxy=SERVER:PORT  # (Connect to a proxy server:port as tests are running)
+--proxy=USERNAME:PASSWORD@SERVER:PORT  # (Use an authenticated proxy server)
+--proxy-bypass-list=STRING # (";"-separated hosts to bypass, Eg "*.foo.com")
 --proxy-pac-url=URL  # (Connect to a proxy server using a PAC_URL.pac file.)
 --proxy-pac-url=USERNAME:PASSWORD@URL  # (Authenticated proxy with PAC URL.)
+--proxy-driver  # (If a driver download is needed, will use: --proxy=PROXY.)
+--multi-proxy  # (Allow multiple authenticated proxies when multi-threaded.)
 --agent=STRING  # (Modify the web browser's User-Agent string.)
 --mobile  # (Use the mobile device emulator while running tests.)
 --metrics=STRING  # (Set mobile metrics: "CSSWidth,CSSHeight,PixelRatio".)
@@ -133,6 +139,7 @@ pytest my_first_test.py --settings-file=custom_settings.py
 --extension-zip=ZIP  # (Load a Chrome Extension .zip|.crx, comma-separated.)
 --extension-dir=DIR  # (Load a Chrome Extension directory, comma-separated.)
 --binary-location=PATH  # (Set path of the Chromium browser binary to use.)
+--driver-version=VER  # (Set the chromedriver or uc_driver version to use.)
 --sjw  # (Skip JS Waits for readyState to be "complete" or Angular to load.)
 --pls=PLS  # (Set pageLoadStrategy on Chrome: "normal", "eager", or "none".)
 --headless  # (Run tests in headless mode. The default arg on Linux OS.)
@@ -152,6 +159,7 @@ pytest my_first_test.py --settings-file=custom_settings.py
 --message-duration=SECONDS  # (The time length for Messenger alerts.)
 --check-js  # (Check for JavaScript errors after page loads.)
 --ad-block  # (Block some types of display ads from loading.)
+--host-resolver-rules=RULES  # (Set host-resolver-rules, comma-separated.)
 --block-images  # (Block images from loading during tests.)
 --do-not-track  # (Indicate to websites that you don't want to be tracked.)
 --verify-delay=SECONDS  # (The delay before MasterQA verification checks.)
@@ -166,16 +174,19 @@ pytest my_first_test.py --settings-file=custom_settings.py
 --enable-sync  # (Enable "Chrome Sync" on websites.)
 --uc | --undetected  # (Use undetected-chromedriver to evade bot-detection.)
 --uc-cdp-events  # (Capture CDP events when running in "--undetected" mode.)
+--log-cdp  # ("goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"})
 --remote-debug  # (Sync to Chrome Remote Debugger chrome://inspect/#devices)
---final-debug  # (Enter Debug Mode after each test ends. Don't use with CI!)
+--ftrace | --final-trace  # (Debug Mode after each test. Don't use with CI!)
 --dashboard  # (Enable the SeleniumBase Dashboard. Saved at: dashboard.html)
 --dash-title=STRING  # (Set the title shown for the generated dashboard.)
---swiftshader  # (Use Chrome's "--use-gl=swiftshader" feature.)
+--enable-3d-apis  # (Enables WebGL and 3D APIs.)
+--swiftshader  # (Chrome "--use-gl=angle" / "--use-angle=swiftshader-webgl")
 --incognito  # (Enable Chrome's Incognito mode.)
 --guest  # (Enable Chrome's Guest mode.)
+--dark  # (Enable Chrome's Dark mode.)
 --devtools  # (Open Chrome's DevTools when the browser opens.)
---reuse-session | --rs  # (Reuse browser session for all tests.)
---reuse-class-session | --rcs  # (Reuse session for tests in class.)
+--rs | --reuse-session  # (Reuse browser session for all tests.)
+--rcs | --reuse-class-session  # (Reuse session for tests in class.)
 --crumbs  # (Delete all cookies between tests reusing a session.)
 --disable-beforeunload  # (Disable the "beforeunload" event on Chrome.)
 --window-size=WIDTH,HEIGHT  # (Set the browser's starting window size.)
@@ -217,13 +228,13 @@ pytest test_suite.py
 
 <h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Demo Mode:</h3>
 
-If any test is moving too fast for your eyes to see what's going on, you can run it in **Demo Mode** by adding ``--demo`` on the command line, which pauses the browser briefly between actions, highlights page elements being acted on, and lets you know what test assertions are happening in real time:
+🔵 If any test is moving too fast for your eyes to see what's going on, you can run it in **Demo Mode** by adding ``--demo`` on the command line, which pauses the browser briefly between actions, highlights page elements being acted on, and lets you know what test assertions are happening in real time:
 
 ```bash
 pytest my_first_test.py --demo
 ```
 
-You can override the default wait time by either updating [settings.py](https://github.com/seleniumbase/SeleniumBase/blob/master/seleniumbase/config/settings.py) or by using ``--demo-sleep={NUM}`` when using Demo Mode. (NOTE: If you use ``--demo-sleep={NUM}`` without using ``--demo``, nothing will happen.)
+🔵 You can override the default wait time by either updating [settings.py](https://github.com/seleniumbase/SeleniumBase/blob/master/seleniumbase/config/settings.py) or by using ``--demo-sleep=NUM`` when using Demo Mode. (NOTE: If you use ``--demo-sleep=NUM`` without using ``--demo``, nothing will happen.)
 
 ```bash
 pytest my_first_test.py --demo --demo-sleep=1.2
@@ -235,11 +246,17 @@ If you want to pass additional data from the command line to your tests, you can
 
 <h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Running tests multithreaded:</h3>
 
-To run pytest tests using multiple processes, add ``-n=NUM`` or ``-n NUM`` on the command line, where NUM is the number of CPUs you want to use.
+To run ``pytest`` with multiple processes, add ``-n=NUM``, ``-n NUM``, or ``-nNUM`` on the command line, where ``NUM`` is the number of CPUs you want to use.
 
-<h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Retrying failing tests automatically:</h3>
+```bash
+pytest -n=8
+pytest -n 8
+pytest -n8
+```
 
-You can use ``--reruns=NUM`` to retry failing tests that many times. Use ``--reruns-delay=SECONDS`` to wait that many seconds between retries. Example:
+<h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> How to retry failing tests automatically:</h3>
+
+<p>You can use <code translate="no">pytest --reruns=NUM</code> to retry failing tests that many times. Add <code translate="no">--reruns-delay=SECONDS</code> to wait that many seconds between retries. Example:</p>
 
 ```bash
 pytest --reruns=1 --reruns-delay=1
@@ -247,37 +264,65 @@ pytest --reruns=1 --reruns-delay=1
 
 <h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Debugging tests:</h3>
 
-You can use the following calls in your scripts to help you debug issues:
+🔵 You can use the following calls in your scripts to help you debug issues:
 
 ```python
 import time; time.sleep(5)  # Makes the test wait and do nothing for 5 seconds.
-import pdb; pdb.set_trace()  # Enter debugging mode. n = next, c = continue, s = step.
-import pytest; pytest.set_trace()  # Enter debugging mode. n = next, c = continue, s = step.
+import pdb; pdb.set_trace()  # Debug Mode. n: next, c: continue, s: step, u: up, d: down.
+import pytest; pytest.set_trace()  # Debug Mode. n: next, c: continue, s: step, u: up, d: down.
 ```
 
-To pause an active test that throws an exception or error, add ``--pdb -s``:
+🔵 To pause an active test that throws an exception or error, (*and keep the browser window open while **Debug Mode** begins in the console*), add **``--pdb``** as a ``pytest`` option:
 
 ```bash
-pytest my_first_test.py --pdb -s
+pytest test_fail.py --pdb
 ```
 
-The code above will leave your browser window open in case there's a failure. (pdb commands: 'c', 's', 'n' => continue, step, next).
+🔵 To start tests in Debug Mode, add **``--trace``** as a ``pytest`` option:
+
+```bash
+pytest test_coffee_cart.py --trace
+```
+
+(**``pdb``** commands: ``n``, ``c``, ``s``, ``u``, ``d`` => ``next``, ``continue``, ``step``, ``up``, ``down``).
 
 <h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Combinations of options:</h3>
 
 🎛️ There are times when you'll want to combine various command-line options for added effect.
-For instance, the multi-process option, ``-n=4``, can be customized by adding:
+For instance, the multi-process option, ``-n8``, can be customized by adding:
 ``--dist=loadscope`` or ``--dist=loadfile`` to it.
-Here's more info on that, as taken from [pytest-xdist](https://pypi.org/project/pytest-xdist/):
+There's more info on that here: [pytest-xdist](https://pypi.org/project/pytest-xdist/2.5.0/):
 
-* ``-n=4 --dist=loadscope``: Tests are grouped by module for test functions and by class for test methods. Groups are distributed to available workers as whole units. This guarantees that all tests in a group run in the same process. This can be useful if you have expensive module-level or class-level fixtures. Grouping by class takes priority over grouping by module.
+* ``-n8 --dist=loadscope``: Tests are grouped by module for test functions and by class for test methods. Groups are distributed to available workers as whole units. This guarantees that all tests in a group run in the same process. This can be useful if you have expensive module-level or class-level fixtures. Grouping by class takes priority over grouping by module.
 
-* ``-n=4 --dist=loadfile``: Tests are grouped by their containing file. Groups are distributed to available workers as whole units. This guarantees that all tests in a file run in the same worker.
+* ``-n8 --dist=loadfile``: Tests are grouped by their containing file. Groups are distributed to available workers as whole units. This guarantees that all tests in a file run in the same worker.
+
+<details>
+<summary> ▶️ <code translate="no">-n8 --dist=loadgroup</code> (<b>click to expand</b>)</summary>
+<div>
+
+<ul><li>Tests are grouped by the <code translate="no">xdist_group</code> mark. Groups are distributed to available workers as whole units. This guarantees that all tests with the same <code translate="no">xdist_group</code> name run in the same worker.</li></ul>
+
+```python
+@pytest.mark.xdist_group(name="group1")
+def test_1():
+    pass
+
+class Test:
+    @pytest.mark.xdist_group("group1")
+    def test_2():
+        pass
+```
+
+<blockquote><p>This makes <code translate="no">test_1</code> and <code translate="no">Test::test_2</code> run in the same worker. Tests without the <code translate="no">xdist_group</code> mark are distributed normally.</p></blockquote>
+
+</div>
+</details>
 
 🎛️ You might also want to combine multiple options at once. For example:
 
 ```bash
-pytest --headless --rs -n=4 -v --dashboard --html=report.html
+pytest --headless -n8 --dashboard --html=report.html -v --rs --crumbs
 ```
 
 The above not only runs tests in parallel processes, but it also tells tests in the same process to share the same browser session, runs the tests in headless mode, displays the full name of each test on a separate line, creates a realtime dashboard of the test results, and creates a full report after all tests complete.
@@ -300,7 +345,7 @@ pytest --dashboard --rs --headless
 python -m http.server 1948
 ```
 
-🔵 Now you can navigate to ``http://localhost:1948/dashboard.html`` in order to view the dashboard as a web app. This requires two different terminal windows: one for running the server, and another for running the tests, which should be run from the same directory. (Use ``CTRL+C`` to stop the http server.)
+🔵 Now you can navigate to ``http://localhost:1948/dashboard.html`` in order to view the dashboard as a web app. This requires two different terminal windows: one for running the server, and another for running the tests, which should be run from the same directory. (Use <kbd>Ctrl+C</kbd> to stop the http server.)
 
 🔵 Here's a full example of what the SeleniumBase Dashboard may look like:
 
@@ -368,6 +413,32 @@ Visit <a href="https://github.com/seleniumbase/SeleniumBase/blob/master/help_doc
 
 --------
 
+<h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Changing the default driver version:</h3>
+
+🔵 By default, SeleniumBase will make sure that the major driver version matches the major browser version for Chromium tests. (Eg. If Chrome `117.X` is installed and you have chromedriver `117.X`, then nothing happens, but if you had chromedriver `116.X` instead, then SeleniumBase would download chromedriver `117.X` to match the browser version.)
+
+🎛️ To change this default behavior, you can use:
+
+```bash
+pytest --driver-version=VER
+```
+
+The `VER` in `--driver-version=VER` can be:
+* A major driver version. Eg. `117`. (milestone)
+* An exact driver version. Eg. `117.0.5938.92`.
+* ``"browser"`` (exact match on browser version)
+* ``"keep"`` (keep using the driver you already have)
+* ``"latest"`` / ``"stable"`` (latest stable version)
+* ``"previous"`` / ``"latest-1"`` (latest minus one)
+* ``"beta"`` (latest beta version)
+* ``"dev"`` (latest dev version)
+* ``"canary"`` (latest canary version)
+* ``"mlatest"`` (latest version for the milestone)
+
+Note that different options could lead to the same result. (Eg. If you have the latest version of a browser for a milestone, then ``"browser"`` and ``"mlatest"`` should give you the same driver if the latest driver version for that milestone matches the browser version.)
+
+--------
+
 <h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Customizing default settings:</h3>
 
 🎛️ An easy way to override [seleniumbase/config/settings.py](https://github.com/seleniumbase/SeleniumBase/blob/master/seleniumbase/config/settings.py) is by using a custom settings file.
@@ -383,7 +454,7 @@ pytest --settings-file=custom_settings.py
 
 <h3><img src="https://seleniumbase.github.io/img/green_logo.png" title="SeleniumBase" width="32" /> Running tests on a remote Selenium Grid:</h3>
 
-🌐 SeleniumBase lets you run tests on remote Selenium Grids such as [BrowserStack](https://www.browserstack.com/automate#)'s Selenium Grid, [LambdaTest](https://www.lambdatest.com/selenium-automation)'s Selenium Grid, [Sauce Labs](https://saucelabs.com/products/open-source-frameworks/selenium)'s Selenium Grid, other Grids, and even your own Grid:
+🌐 SeleniumBase lets you run tests on remote Selenium Grids such as [BrowserStack](https://www.browserstack.com/automate#)'s Selenium Grid, [Sauce Labs](https://saucelabs.com/products/platform-configurator)'s Selenium Grid, other Grids, and even your own Grid:
 
 🌐 For setting browser desired capabilities while running Selenium remotely, see the ReadMe located here: https://github.com/seleniumbase/SeleniumBase/tree/master/examples/capabilities
 
@@ -397,24 +468,6 @@ Here's how to connect to a Sauce Labs Selenium Grid server for running tests:
 
 ```bash
 pytest test_demo_site.py --server=USERNAME:KEY@ondemand.us-east-1.saucelabs.com --port=443 --protocol=https
-```
-
-Here's how to connect to a Perfecto Selenium Grid server for running tests:
-
-```bash
-pytest test_demo_site.py --server=USERNAME:KEY@demo.perfectomobile.com/nexperience/perfectomobile --port=443
-```
-
-Here's how to connect to a TestingBot Selenium Grid server for running tests:
-
-```bash
-pytest test_demo_site.py --server=USERNAME:KEY@hub.testingbot.com --port=80
-```
-
-Here's how to connect to a LambdaTest Selenium Grid server for running tests:
-
-```bash
-pytest test_demo_site.py --server=USERNAME:KEY@hub.lambdatest.com --port=80
 ```
 
 Here's how to connect to a CrossBrowserTesting Selenium Grid server for running tests:

@@ -5,15 +5,15 @@ BaseCase.main(__name__, __file__)
 class MyTourClass(BaseCase):
     def test_google_tour(self):
         self.open("https://google.com/ncr")
-        self.wait_for_element('input[title="Search"]')
+        self.wait_for_element('[title="Search"]')
         self.hide_elements("iframe")
 
         self.create_shepherd_tour(theme="dark")
         self.add_tour_step("Welcome to Google!", title="SeleniumBase Tours")
-        self.add_tour_step("Type in your query here.", 'input[title="Search"]')
+        self.add_tour_step("Type in your query here.", '[title="Search"]')
         self.play_tour()
 
-        self.highlight_type('input[title="Search"]', "Google")
+        self.highlight_type('[title="Search"]', "Google")
         self.wait_for_element('[role="listbox"]')  # Wait for autocomplete
 
         self.create_shepherd_tour(theme="light")
@@ -21,7 +21,7 @@ class MyTourClass(BaseCase):
         self.add_tour_step("Or press [ENTER] after entry.", '[title="Search"]')
         self.play_tour()
 
-        self.highlight_type('input[title="Search"]', "GitHub\n")
+        self.highlight_type('[title="Search"]', "GitHub\n")
         self.ad_block()
         self.wait_for_element("#search")
 
@@ -65,11 +65,18 @@ class MyTourClass(BaseCase):
             alignment="left",
             theme="light",
         )
-        self.add_tour_step(
-            "Use the Menu button to see more options.",
-            'button[jsaction*="settings.open;"]',
-            alignment="right",
-        )
+        if self.is_element_visible('button[jsaction*="settings.open;"]'):
+            self.add_tour_step(
+                "Use the Menu button to see more options.",
+                'button[jsaction*="settings.open;"]',
+                alignment="right",
+            )
+        elif self.is_element_visible('button[jsaction="navigationrail.more"]'):
+            self.add_tour_step(
+                "Use the Menu button to see more options.",
+                'button[jsaction="navigationrail.more"]',
+                alignment="right",
+            )
         self.add_tour_step(
             "Or click here to see more Google apps.",
             '[title="Google apps"]',

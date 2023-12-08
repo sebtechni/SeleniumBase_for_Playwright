@@ -13,8 +13,8 @@
     with other plugins, such as ones for generating test reports,
     handling multithreading, and parametrized tests. Depending on your
     specific needs, you may need to call SeleniumBase commands without
-    using Pytest, and this example shows you how. """
-
+    using Pytest, and this example shows you how.
+"""
 pure_python = False
 try:
     # Running with Pytest / (Finds test methods to run using autodiscovery)
@@ -52,13 +52,13 @@ if pure_python:
     sb.user_agent = None
     sb.incognito = False
     sb.guest_mode = False
+    sb.dark_mode = False
     sb.devtools = False
     sb.mobile_emulator = False
     sb.device_metrics = None
     sb.extension_zip = None
     sb.extension_dir = None
     sb.database_env = "test"
-    sb.log_path = "latest_logs"
     sb.archive_logs = False
     sb.disable_csp = False
     sb.disable_ws = False
@@ -71,17 +71,20 @@ if pure_python:
     sb.no_sandbox = False
     sb.disable_js = False
     sb.disable_gpu = False
+    sb.log_cdp_events = False
     sb._multithreaded = False
     sb._reuse_session = False
     sb._crumbs = False
     sb._final_debug = False
     sb.use_wire = False
-    sb.visual_baseline = False
+    sb.enable_3d_apis = False
     sb.window_size = None
     sb.maximize_option = False
+    sb.visual_baseline = False
     sb._disable_beforeunload = False
     sb.save_screenshot_after_test = False
     sb.no_screenshot_after_test = False
+    sb.host_resolver_rules = None
     sb.page_load_strategy = None
     sb.timeout_multiplier = None
     sb.pytest_html_report = None
@@ -103,7 +106,7 @@ if pure_python:
     sb._dash_initialized = False
     sb.message_duration = None
     sb.binary_location = None
-    sb.enable_3d_apis = False
+    sb.driver_version = None
     sb.block_images = False
     sb.do_not_track = False
     sb.external_pdf = False
@@ -116,7 +119,8 @@ if pure_python:
     sb.proxy_string = None
     sb.proxy_bypass_list = None
     sb.proxy_pac_url = None
-    sb.swiftshader = False
+    sb._swiftshader = False
+    sb.multi_proxy = False
     sb.ad_block_on = False
     sb.highlights = None
     sb.interval = None

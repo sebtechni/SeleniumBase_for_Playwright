@@ -4,16 +4,22 @@ SeleniumBase as a Python Context Manager.
 
 The SeleniumBase SB Context Manager:
 Usage --> ``with SB() as sb:``
-Usage example -->
-    from seleniumbase import SB
-    with SB() as sb:  # Many args! Eg. SB(browser="edge")
-        sb.open("https://google.com/ncr")
-        sb.type('[name="q"]', "SeleniumBase on GitHub\n")
-        sb.click('a[href*="github.com/seleniumbase"]')
-        sb.highlight("div.Layout-main")
-        sb.highlight("div.Layout-sidebar")
-        sb.sleep(0.5)
-    # The browser exits automatically after the "with" block ends.
+
+Example -->
+
+```
+from seleniumbase import SB
+
+with SB() as sb:  # Many args! Eg. SB(browser="edge")
+    sb.open("https://google.com/ncr")
+    sb.type('[name="q"]', "SeleniumBase on GitHub\n")
+    sb.click('a[href*="github.com/seleniumbase"]')
+    sb.highlight("div.Layout-main")
+    sb.highlight("div.Layout-sidebar")
+    sb.sleep(0.5)
+```
+
+# (The browser exits automatically after the "with" block ends.)
 
 #########################################
 """
@@ -35,6 +41,7 @@ def SB(
     proxy=None,  # Use proxy. Format: "SERVER:PORT" or "USER:PASS@SERVER:PORT".
     proxy_bypass_list=None,  # Skip proxy when using the listed domains.
     proxy_pac_url=None,  # Use PAC file. (Format: URL or USERNAME:PASSWORD@URL)
+    multi_proxy=False,  # Allow multiple proxies with auth when multi-threaded.
     agent=None,  # Modify the web browser's User-Agent string.
     cap_file=None,  # The desired capabilities to use with a Selenium Grid.
     cap_string=None,  # The desired capabilities to use with a Selenium Grid.
@@ -47,13 +54,16 @@ def SB(
     undetectable=None,  # Use undetected-chromedriver to evade bot-detection.
     uc_cdp_events=None,  # Capture CDP events in undetected-chromedriver mode.
     uc_subprocess=None,  # Use undetected-chromedriver as a subprocess.
+    log_cdp_events=None,  # Capture {"performance": "ALL", "browser": "ALL"}
     incognito=None,  # Enable Chromium's Incognito mode.
     guest_mode=None,  # Enable Chromium's Guest mode.
+    dark_mode=None,  # Enable Chromium's Dark mode.
     devtools=None,  # Open Chromium's DevTools when the browser opens.
     remote_debug=None,  # Enable Chrome's Debugger on "http://localhost:9222".
     enable_3d_apis=None,  # Enable WebGL and 3D APIs.
-    swiftshader=None,  # Use Chrome's "--use-gl=swiftshader" feature.
+    swiftshader=None,  # Chrome: --use-gl=angle / --use-angle=swiftshader-webgl
     ad_block_on=None,  # Block some types of display ads from loading.
+    host_resolver_rules=None,  # Set host-resolver-rules, comma-separated.
     block_images=None,  # Block images from loading during tests.
     do_not_track=None,  # Tell websites that you don't want to be tracked.
     chromium_arg=None,  # "ARG=N,ARG2" (Set Chromium args, ","-separated.)
@@ -63,7 +73,7 @@ def SB(
     extension_zip=None,  # Load a Chrome Extension .zip|.crx, comma-separated.
     extension_dir=None,  # Load a Chrome Extension directory, comma-separated.
     binary_location=None,  # Set path of the Chromium browser binary to use.
-    page_load_strategy=None,  # Set Chrome PLS to "normal", "eager", or "none".
+    driver_version=None,  # Set the chromedriver or uc_driver version to use.
     skip_js_waits=None,  # Skip JS Waits (readyState=="complete" and Angular).
     use_wire=None,  # Use selenium-wire's webdriver over selenium webdriver.
     external_pdf=None,  # Set Chrome "plugins.always_open_pdf_externally":True.
@@ -91,11 +101,13 @@ def SB(
     undetected=None,  # Shortcut / Duplicate of "undetectable".
     uc_cdp=None,  # Shortcut / Duplicate of "uc_cdp_events".
     uc_sub=None,  # Shortcut / Duplicate of "uc_subprocess".
+    log_cdp=None,  # Shortcut / Duplicate of "log_cdp_events".
     wire=None,  # Shortcut / Duplicate of "use_wire".
     pls=None,  # Shortcut / Duplicate of "page_load_strategy".
     sjw=None,  # Shortcut / Duplicate of "skip_js_waits".
     save_screenshot=None,  # Save a screenshot at the end of each test.
     no_screenshot=None,  # No screenshots saved unless tests directly ask it.
+    page_load_strategy=None,  # Set Chrome PLS to "normal", "eager", or "none".
     timeout_multiplier=None,  # Multiplies the default timeout values.
     js_checking_on=None,  # Check for JavaScript errors after page loads.
     slow=None,  # Slow down the automation. Faster than using Demo Mode.
@@ -106,6 +118,7 @@ def SB(
     interval=None,  # SECONDS (Autoplay interval for SB Slides & Tour steps.)
     time_limit=None,  # SECONDS (Safely fail tests that exceed the time limit.)
 ):
+    import os
     import sys
     import time
     import traceback
@@ -117,7 +130,9 @@ def SB(
 
     sb_config_backup = sb_config
     sb_config._do_sb_post_mortem = False
+    is_windows = shared_utils.is_windows()
     sys_argv = sys.argv
+    arg_join = " ".join(sys_argv)
     archive_logs = False
     existing_runner = False
     do_log_folder_setup = False  # The first "test=True" run does it
@@ -191,10 +206,6 @@ def SB(
         browser_changes += 1
         browser_set = "firefox"
         browser_list.append("--browser=firefox")
-    if "--browser=opera" in sys_argv or "--browser opera" in sys_argv:
-        browser_changes += 1
-        browser_set = "opera"
-        browser_list.append("--browser=opera")
     if "--browser=safari" in sys_argv or "--browser safari" in sys_argv:
         browser_changes += 1
         browser_set = "safari"
@@ -228,11 +239,6 @@ def SB(
         browser_text = "ie"
         sb_config._browser_shortcut = "ie"
         browser_list.append("--ie")
-    if "--opera" in sys_argv and not browser_set == "opera":
-        browser_changes += 1
-        browser_text = "opera"
-        sb_config._browser_shortcut = "opera"
-        browser_list.append("--opera")
     if "--safari" in sys_argv and not browser_set == "safari":
         browser_changes += 1
         browser_text = "safari"
@@ -289,6 +295,11 @@ def SB(
             guest_mode = True
         else:
             guest_mode = False
+    if dark_mode is None:
+        if "--dark" in sys_argv:
+            dark_mode = True
+        else:
+            dark_mode = False
     if devtools is None:
         if "--devtools" in sys_argv:
             devtools = True
@@ -301,7 +312,19 @@ def SB(
             is_mobile = True
         else:
             is_mobile = False
+    if is_mobile:
+        sb_config.mobile_emulator = True
     proxy_string = proxy
+    if proxy_string is None and "--proxy" in arg_join:
+        if "--proxy=" in arg_join:
+            proxy_string = arg_join.split("--proxy=")[1].split(" ")[0]
+        elif "--proxy " in arg_join:
+            proxy_string = arg_join.split("--proxy ")[1].split(" ")[0]
+        if proxy_string:
+            if proxy_string.startswith('"') and proxy_string.endswith('"'):
+                proxy_string = proxy_string[1:-1]
+            elif proxy_string.startswith("'") and proxy_string.endswith("'"):
+                proxy_string = proxy_string[1:-1]
     user_agent = agent
     recorder_mode = False
     if recorder_ext:
@@ -328,11 +351,11 @@ def SB(
             record_sleep = True
         else:
             record_sleep = False
-    if "linux" not in sys.platform:
+    if not shared_utils.is_linux():
         # The Xvfb virtual display server is for Linux OS Only!
         xvfb = False
     if (
-        "linux" in sys.platform
+        shared_utils.is_linux()
         and not headed
         and not headless
         and not headless2
@@ -358,9 +381,11 @@ def SB(
     if recorder_mode and headless:
         headless = False
         headless2 = True
+    sb_config.proxy_driver = False
+    if "--proxy-driver" in sys_argv or "--proxy_driver" in sys_argv:
+        sb_config.proxy_driver = True
     if variables and type(variables) is str and len(variables) > 0:
         import ast
-
         bad_input = False
         if (
             not variables.startswith("{")
@@ -435,9 +460,33 @@ def SB(
         uc_subprocess = True
     else:
         uc_subprocess = False
-    if undetectable and is_mobile:
-        is_mobile = False
-        user_agent = None
+    if uc_cdp_events or uc_cdp:
+        undetectable = True
+        uc_cdp_events = True
+    elif (
+        "--uc-cdp-events" in sys_argv
+        or "--uc_cdp_events" in sys_argv
+        or "--uc-cdp" in sys_argv
+        or "--uc_cdp" in sys_argv
+    ):
+        undetectable = True
+        uc_cdp_events = True
+    else:
+        uc_cdp_events = False
+    if log_cdp_events is None and log_cdp is None:
+        if (
+            "--log-cdp-events" in sys_argv
+            or "--log_cdp_events" in sys_argv
+            or "--log-cdp" in sys_argv
+            or "--log_cdp" in sys_argv
+        ):
+            log_cdp_events = True
+        else:
+            log_cdp_events = False
+    elif log_cdp_events or log_cdp:
+        log_cdp_events = True
+    else:
+        log_cdp_events = False
     if use_auto_ext is None:
         if "--use-auto-ext" in sys_argv:
             use_auto_ext = True
@@ -495,6 +544,8 @@ def SB(
             no_screenshot = False
     if save_screenshot and no_screenshot:
         save_screenshot = False  # "no_screenshot" has priority
+    if browser == "safari" and headless:
+        headless = False  # Safari doesn't support headless mode
     if js_checking_on is None:
         if "--check-js" in sys_argv:
             js_checking_on = True
@@ -554,6 +605,24 @@ def SB(
             ad_block_on = True
         else:
             ad_block_on = False
+    if host_resolver_rules is None:
+        if '--host-resolver-rules="' in arg_join:
+            host_resolver_rules = (
+                arg_join.split('--host-resolver-rules="')[1].split('"')[0]
+            )
+        elif '--host_resolver_rules="' in arg_join:
+            host_resolver_rules = (
+                arg_join.split("--host_resolver_rules=")[1].split('"')[0]
+            )
+    if driver_version is None:
+        if "--driver-version=" in arg_join:
+            driver_version = (
+                arg_join.split("--driver-version=")[1].split(" ")[0]
+            )
+        elif "--driver_version=" in arg_join:
+            driver_version = (
+                arg_join.split("--driver_version=")[1].split(" ")[0]
+            )
     if highlights is not None:
         try:
             highlights = int(highlights)
@@ -599,13 +668,14 @@ def SB(
     sb_config.user_agent = user_agent
     sb_config.incognito = incognito
     sb_config.guest_mode = guest_mode
+    sb_config.dark_mode = dark_mode
     sb_config.devtools = devtools
     sb_config.mobile_emulator = is_mobile
     sb_config.device_metrics = device_metrics
     sb_config.extension_zip = extension_zip
     sb_config.extension_dir = extension_dir
     sb_config.database_env = "test"
-    sb_config.log_path = "latest_logs"
+    sb_config.log_path = constants.Logs.LATEST
     sb_config.archive_logs = archive_logs
     sb_config.disable_csp = disable_csp
     sb_config.disable_ws = disable_ws
@@ -615,6 +685,7 @@ def SB(
     sb_config.undetectable = undetectable
     sb_config.uc_cdp_events = uc_cdp_events
     sb_config.uc_subprocess = uc_subprocess
+    sb_config.log_cdp_events = log_cdp_events
     sb_config.no_sandbox = None
     sb_config.disable_gpu = None
     sb_config.disable_js = disable_js
@@ -629,6 +700,7 @@ def SB(
     sb_config.save_screenshot = save_screenshot
     sb_config.no_screenshot = no_screenshot
     sb_config.binary_location = binary_location
+    sb_config.driver_version = driver_version
     sb_config.page_load_strategy = page_load_strategy
     sb_config.timeout_multiplier = timeout_multiplier
     sb_config.pytest_html_report = None
@@ -648,6 +720,7 @@ def SB(
     sb_config.dashboard = False
     sb_config._dashboard_initialized = False
     sb_config.message_duration = message_duration
+    sb_config.host_resolver_rules = host_resolver_rules
     sb_config.block_images = block_images
     sb_config.do_not_track = do_not_track
     sb_config.use_wire = use_wire
@@ -661,6 +734,7 @@ def SB(
     sb_config.proxy_string = proxy_string
     sb_config.proxy_bypass_list = proxy_bypass_list
     sb_config.proxy_pac_url = proxy_pac_url
+    sb_config.multi_proxy = multi_proxy
     sb_config.enable_3d_apis = enable_3d_apis
     sb_config.swiftshader = swiftshader
     sb_config.ad_block_on = ad_block_on
@@ -696,8 +770,10 @@ def SB(
     sb.user_agent = sb_config.user_agent
     sb.incognito = sb_config.incognito
     sb.guest_mode = sb_config.guest_mode
+    sb.dark_mode = sb_config.dark_mode
     sb.devtools = sb_config.devtools
     sb.binary_location = sb_config.binary_location
+    sb.driver_version = sb_config.driver_version
     sb.mobile_emulator = sb_config.mobile_emulator
     sb.device_metrics = sb_config.device_metrics
     sb.extension_zip = sb_config.extension_zip
@@ -713,6 +789,7 @@ def SB(
     sb.undetectable = sb_config.undetectable
     sb.uc_cdp_events = sb_config.uc_cdp_events
     sb.uc_subprocess = sb_config.uc_subprocess
+    sb.log_cdp_events = sb_config.log_cdp_events
     sb.no_sandbox = sb_config.no_sandbox
     sb.disable_gpu = sb_config.disable_gpu
     sb.disable_js = sb_config.disable_js
@@ -745,6 +822,7 @@ def SB(
     sb.dashboard = sb_config.dashboard
     sb._dash_initialized = sb_config._dashboard_initialized
     sb.message_duration = sb_config.message_duration
+    sb.host_resolver_rules = sb_config.host_resolver_rules
     sb.block_images = sb_config.block_images
     sb.do_not_track = sb_config.do_not_track
     sb.use_wire = sb_config.use_wire
@@ -758,8 +836,9 @@ def SB(
     sb.proxy_string = sb_config.proxy_string
     sb.proxy_bypass_list = sb_config.proxy_bypass_list
     sb.proxy_pac_url = sb_config.proxy_pac_url
+    sb.multi_proxy = sb_config.multi_proxy
     sb.enable_3d_apis = sb_config.enable_3d_apis
-    sb.swiftshader = sb_config.swiftshader
+    sb._swiftshader = sb_config.swiftshader
     sb.ad_block_on = sb_config.ad_block_on
     sb.highlights = sb_config.highlights
     sb.interval = sb_config.interval
@@ -774,9 +853,10 @@ def SB(
     terminal_width = shared_utils.get_terminal_width()
     if test:
         import colorama
-        import os
-
-        colorama.init(autoreset=True)
+        if is_windows and hasattr(colorama, "just_fix_windows_console"):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c1 = colorama.Fore.GREEN
         b1 = colorama.Style.BRIGHT
         cr = colorama.Style.RESET_ALL
@@ -799,9 +879,11 @@ def SB(
         from seleniumbase.core import download_helper
         from seleniumbase.core import proxy_helper
 
-        log_helper.log_folder_setup(sb_config.log_path)
+        log_helper.log_folder_setup(constants.Logs.LATEST + "/")
+        log_helper.clear_empty_logs()
         download_helper.reset_downloads_folder()
-        proxy_helper.remove_proxy_zip_if_present()
+        if not sb_config.multi_proxy:
+            proxy_helper.remove_proxy_zip_if_present()
     start_time = time.time()
     sb.setUp()
     test_passed = True  # This can change later
@@ -831,6 +913,13 @@ def SB(
     finally:
         if sb._has_failure and "--pdb" in sys_argv:
             sb_config._do_sb_post_mortem = True
+        elif (
+            "--final-debug" in sys_argv
+            or "--final-trace" in sys_argv
+            or "--fdebug" in sys_argv
+            or "--ftrace" in sys_argv
+        ):
+            sb_config._do_sb_final_trace = True
         try:
             sb.tearDown()
         except Exception as t_e:

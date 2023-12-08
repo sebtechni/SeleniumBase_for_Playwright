@@ -1,4 +1,4 @@
-"""The Nosetest plugin for setting base configuration and logging."""
+"""Base Plugin for SeleniumBase tests that run with pynose / nosetests"""
 import ast
 import sys
 import time
@@ -13,11 +13,11 @@ from seleniumbase.fixtures import constants
 python3_11_or_newer = False
 if sys.version_info >= (3, 11):
     python3_11_or_newer = True
+py311_patch2 = constants.PatchPy311.PATCH = True
 
 
 class Base(Plugin):
-    """
-    This plugin adds the following command-line options to nosetests:
+    """This plugin adds the following command-line options to pynose:
     --env=ENV  (Set the test env. Access with "self.env" in tests.)
     --account=STR  (Set account. Access with "self.account" in tests.)
     --data=STRING  (Extra test data. Access with "self.data" in tests.)
@@ -26,6 +26,7 @@ class Base(Plugin):
     --var3=STRING  (Extra test data. Access with "self.var3" in tests.)
     --variables=DICT  (Extra test data. Access with "self.variables".)
     --settings-file=FILE  (Override default SeleniumBase settings.)
+    --ftrace | --final-trace  (Enter Debug Mode after any test ends.)
     --archive-logs  (Archive old log files instead of deleting them.)
     --archive-downloads  (Archive old downloads instead of deleting.)
     --report  (Create a fancy nosetests report after tests complete.)
@@ -49,15 +50,24 @@ class Base(Plugin):
                 constants.Environment.STAGING,
                 constants.Environment.DEVELOP,
                 constants.Environment.PRODUCTION,
+                constants.Environment.PERFORMANCE,
+                constants.Environment.REPLICA,
+                constants.Environment.FEDRAMP,
                 constants.Environment.OFFLINE,
                 constants.Environment.ONLINE,
                 constants.Environment.MASTER,
                 constants.Environment.REMOTE,
+                constants.Environment.LEGACY,
                 constants.Environment.LOCAL,
                 constants.Environment.ALPHA,
                 constants.Environment.BETA,
+                constants.Environment.DEMO,
+                constants.Environment.GDPR,
                 constants.Environment.MAIN,
                 constants.Environment.TEST,
+                constants.Environment.GOV,
+                constants.Environment.NEW,
+                constants.Environment.OLD,
                 constants.Environment.UAT,
             ),
             default=constants.Environment.TEST,
@@ -121,10 +131,23 @@ class Base(Plugin):
                     values in the SeleniumBase settings.py file.""",
         )
         parser.addoption(
+            "--final-debug",
+            "--final-trace",
+            "--fdebug",
+            "--ftrace",
+            action="store_true",
+            dest="final_debug",
+            default=False,
+            help="""Enter Debug Mode at the end of each test.
+                    To enter Debug Mode only on failures, use "--pdb".
+                    If using both "--final-debug" and "--pdb" together,
+                    then Debug Mode will activate twice on failures.""",
+        )
+        parser.addoption(
             "--log_path",
             "--log-path",
             dest="log_path",
-            default="latest_logs/",
+            default=constants.Logs.LATEST + "/",
             help="""(DEPRECATED) - This field is NOT EDITABLE anymore.
                     Log files are saved to the "latest_logs/" folder.""",
         )
@@ -160,12 +183,9 @@ class Base(Plugin):
             help="If true when using report, will display it after tests run.",
         )
         found_processes_arg = False
-        found_timeout_arg = False
         for arg in sys.argv:
-            if "--processes=" in arg:
+            if "--processes=" in arg or "--processes" in arg:
                 found_processes_arg = True
-            if "--timeout=" in arg:
-                found_timeout_arg = True
         if found_processes_arg:
             print("* WARNING: Don't use multi-threading with nosetests! *")
             parser.addoption(
@@ -173,16 +193,6 @@ class Base(Plugin):
                 dest="processes",
                 default=0,
                 help="WARNING: Don't use multi-threading with nosetests!",
-            )
-        if found_timeout_arg:
-            print("\n  WARNING: Don't use --timeout=s from pytest-timeout!")
-            print("  It's not thread-safe for WebDriver processes!")
-            print("  Use --time-limit=s from SeleniumBase instead!\n")
-            parser.addoption(
-                "--timeout",
-                dest="timeout",
-                default=0,
-                help="Don't use --timeout=s! Use --time-limit=s instead!",
             )
 
     def configure(self, options, conf):
@@ -198,7 +208,7 @@ class Base(Plugin):
         self.page_results_list = []
         self.test_count = 0
         self.import_error = False
-        log_path = "latest_logs/"
+        log_path = constants.Logs.LATEST + "/"
         archive_logs = options.archive_logs
         log_helper.log_folder_setup(log_path, archive_logs)
         download_helper.reset_downloads_folder()
@@ -237,6 +247,7 @@ class Base(Plugin):
         test.test.var3 = self.options.var3
         test.test.variables = variables  # Already verified is a dictionary
         test.test.settings_file = self.options.settings_file
+        test.test._final_debug = self.options.final_debug
         test.test.log_path = self.options.log_path
         if self.options.archive_downloads:
             settings.ARCHIVE_EXISTING_DOWNLOADS = True
@@ -249,6 +260,7 @@ class Base(Plugin):
         log_helper.archive_logs_if_set(
             self.options.log_path, self.options.archive_logs
         )
+        log_helper.clear_empty_logs()
         if self.report_on:
             if not self.import_error:
                 report_helper.add_bad_page_log_file(self.page_results_list)
@@ -261,24 +273,6 @@ class Base(Plugin):
                     self.options.browser,
                     self.show_report,
                 )
-
-    def __log_all_options_if_none_specified(self, test):
-        """
-        When testing_base is specified, but none of the log options to save are
-        specified (basic_test_info, screen_shots, page_source), then save them
-        all by default. Otherwise, save only selected ones from their plugins.
-        """
-        if (
-            (not self.options.enable_plugin_basic_test_info)
-            and (not self.options.enable_plugin_screen_shots)
-            and (not self.options.enable_plugin_page_source)
-        ):
-            test_logpath = self.options.log_path + "/" + test.id()
-            log_helper.log_screenshot(test_logpath, test.driver)
-            log_helper.log_test_failure_data(
-                test, test_logpath, test.driver, test.browser
-            )
-            log_helper.log_page_source(test_logpath, test.driver)
 
     def addSuccess(self, test, capt):
         if self.report_on:
@@ -308,7 +302,7 @@ class Base(Plugin):
                     test, self.test_count, self.duration
                 )
             )
-        if python3_11_or_newer:
+        if python3_11_or_newer and py311_patch2:
             # Handle a bug on Python 3.11 where exceptions aren't seen
             sb_config._browser_version = None
             try:
@@ -336,15 +330,12 @@ class Base(Plugin):
                 )
 
     def addFailure(self, test, err, capt=None, tbinfo=None):
-        # self.__log_all_options_if_none_specified(test)
         self.add_fails_or_errors(test, err)
 
     def addError(self, test, err, capt=None):
-        """
-        Since Skip, Blocked, and Deprecated are all technically errors, but not
-        error states, we want to make sure that they don't show up in
-        the nose output as errors.
-        """
+        """Since Skip, Blocked, and Deprecated are all technically errors,
+        but not error states, we want to make sure that they
+        don't show up in the nose output as errors."""
         from seleniumbase.fixtures import errors
 
         if (
@@ -363,27 +354,19 @@ class Base(Plugin):
                 )[0]
             )
         else:
-            # self.__log_all_options_if_none_specified(test)
             pass
         self.add_fails_or_errors(test, err)
 
     def handleError(self, test, err, capt=None):
-        """
-        If the database plugin is not present, we have to handle capturing
-        "errors" that shouldn't be reported as such in base.
-        """
+        """After each test error, record testcase run information.
+        "Error" also encompasses any states other than Pass or Fail."""
         from nose.exc import SkipTest
         from seleniumbase.fixtures import errors
 
         if not hasattr(test.test, "testcase_guid"):
             if err[0] == errors.BlockedTest:
                 raise SkipTest(err[1])
-                return True
-
             elif err[0] == errors.DeprecatedTest:
                 raise SkipTest(err[1])
-                return True
-
             elif err[0] == errors.SkipTest:
                 raise SkipTest(err[1])
-                return True

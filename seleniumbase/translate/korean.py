@@ -24,6 +24,10 @@ class 셀레늄_테스트_케이스(BaseCase):
         # double_click(selector)
         return self.double_click(*args, **kwargs)
 
+    def 컨텍스트_클릭(self, *args, **kwargs):
+        # context_click(selector)
+        return self.context_click(*args, **kwargs)
+
     def 천천히_클릭(self, *args, **kwargs):
         # slow_click(selector)
         return self.slow_click(*args, **kwargs)
@@ -72,6 +76,10 @@ class 셀레늄_테스트_케이스(BaseCase):
     def 링크_텍스트_확인(self, *args, **kwargs):
         # assert_link_text(link_text)
         return self.assert_link_text(*args, **kwargs)
+
+    def 비어_있지_않은_텍스트_확인하는(self, *args, **kwargs):
+        # assert_non_empty_text(selector)
+        return self.assert_non_empty_text(*args, **kwargs)
 
     def 텍스트_보이지_않는지_확인(self, *args, **kwargs):
         # assert_text_not_visible(text, selector)
@@ -357,9 +365,13 @@ class 셀레늄_테스트_케이스(BaseCase):
         # scroll_to_bottom()
         return self.scroll_to_bottom(*args, **kwargs)
 
-    def 위로_마우스를_이동하고_클릭(self, *args, **kwargs):
+    def 마우스오버_및_클릭(self, *args, **kwargs):
         # hover_and_click(hover_selector, click_selector)
         return self.hover_and_click(*args, **kwargs)
+
+    def 마우스오버(self, *args, **kwargs):
+        # hover(selector)
+        return self.hover(*args, **kwargs)
 
     def 선택되어_있는지(self, *args, **kwargs):
         # is_selected(selector)

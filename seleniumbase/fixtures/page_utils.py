@@ -1,10 +1,12 @@
-"""This module contains useful utility methods."""
+"""This module contains useful utility methods"""
 import codecs
 import fasteners
 import os
 import re
 import requests
+from selenium.webdriver.common.by import By
 from seleniumbase.fixtures import constants
+from seleniumbase.fixtures import css_to_xpath
 
 
 def get_domain_url(url):
@@ -21,6 +23,19 @@ def get_domain_url(url):
     base_url = simple_url.split("/")[0]
     domain_url = url_header + "://" + base_url
     return domain_url
+
+
+def is_valid_by(by):
+    return by in [
+        "css selector", "class name", "id", "name",
+        "link text", "xpath", "tag name", "partial link text",
+    ]
+
+
+def swap_selector_and_by_if_reversed(selector, by):
+    if not is_valid_by(by) and is_valid_by(selector):
+        selector, by = by, selector
+    return (selector, by)
 
 
 def is_xpath_selector(selector):
@@ -64,6 +79,65 @@ def is_name_selector(selector):
     if selector.startswith("name=") or selector.startswith("&"):
         return True
     return False
+
+
+def recalculate_selector(selector, by, xp_ok=True):
+    """Use autodetection to return the correct selector with "by" updated.
+    If "xp_ok" is False, don't call convert_css_to_xpath(), which is
+    used to make the ":contains()" selector valid outside of JS calls.
+    Returns a (selector, by) tuple."""
+    _type = type(selector)
+    if _type is not str:
+        msg = "Expecting a selector of type: \"<class 'str'>\" (string)!"
+        raise Exception('Invalid selector type: "%s"\n%s' % (_type, msg))
+    _by_type = type(by)
+    if _by_type is not str:
+        msg = "Expecting a `by` of type: \"<class 'str'>\" (string)!"
+        raise Exception('Invalid `by` type: "%s"\n%s' % (_by_type, msg))
+    if not is_valid_by(by) and is_valid_by(selector):
+        selector, by = swap_selector_and_by_if_reversed(selector, by)
+    if is_xpath_selector(selector):
+        by = By.XPATH
+    if is_link_text_selector(selector):
+        selector = get_link_text_from_selector(selector)
+        by = By.LINK_TEXT
+    if is_partial_link_text_selector(selector):
+        selector = get_partial_link_text_from_selector(selector)
+        by = By.PARTIAL_LINK_TEXT
+    if is_name_selector(selector):
+        name = get_name_from_selector(selector)
+        selector = '[name="%s"]' % name
+        by = By.CSS_SELECTOR
+    if xp_ok:
+        if ":contains(" in selector and by == By.CSS_SELECTOR:
+            selector = css_to_xpath.convert_css_to_xpath(selector)
+            by = By.XPATH
+    if by == "":
+        by = By.CSS_SELECTOR
+    return (selector, by)
+
+
+def looks_like_a_page_url(url):
+    """Returns True if the url parameter looks like a URL. This method
+    is slightly more lenient than page_utils.is_valid_url(url) due to
+    possible typos when calling self.get(url), which will try to
+    navigate to the page if a URL is detected, but will instead call
+    self.get_element(URL_AS_A_SELECTOR) if the input is not a URL."""
+    if (
+        url.startswith("http:")
+        or url.startswith("https:")
+        or url.startswith("://")
+        or url.startswith("about:")
+        or url.startswith("blob:")
+        or url.startswith("chrome:")
+        or url.startswith("data:")
+        or url.startswith("edge:")
+        or url.startswith("file:")
+        or url.startswith("view-source:")
+    ):
+        return True
+    else:
+        return False
 
 
 def get_link_text_from_selector(selector):
@@ -117,10 +191,10 @@ def is_valid_url(url):
     if (
         regex.match(url)
         or url.startswith("about:")
-        or url.startswith("data:")
+        or url.startswith("blob:")
         or url.startswith("chrome:")
+        or url.startswith("data:")
         or url.startswith("edge:")
-        or url.startswith("opera:")
         or url.startswith("file:")
     ):
         return True
@@ -178,11 +252,18 @@ def _get_unique_links(page_url, soup):
                 link = prefix + link
             elif link.startswith("/"):
                 link = full_base_url + link
+            elif link == "./":
+                link = page_url
             elif link.startswith("./"):
                 f_b_url = full_base_url
                 if len(simple_url.split("/")) > 1:
                     f_b_url = full_base_url + "/" + simple_url.split("/")[1]
                 link = f_b_url + link[1:]
+            elif link.startswith("../"):
+                if page_url.endswith("/"):
+                    link = page_url + link
+                else:
+                    link = page_url + "/" + link
             elif link.startswith("#"):
                 link = full_base_url + link
             elif "//" not in link:
@@ -190,6 +271,8 @@ def _get_unique_links(page_url, soup):
                 if len(simple_url.split("/")) > 1:
                     f_b_url = full_base_url + "/" + simple_url.split("/")[1]
                 link = f_b_url + "/" + link
+            elif link.startswith('"') and link.endswith('"') and len(link) > 4:
+                link = link[1:-1]
             else:
                 pass
             unique_links.append(link)
@@ -242,7 +325,7 @@ def _download_file_to(file_url, destination_folder, new_file_name=None):
         file_name = new_file_name
     else:
         file_name = file_url.split("/")[-1]
-    r = requests.get(file_url)
+    r = requests.get(file_url, timeout=5)
     file_path = os.path.join(destination_folder, file_name)
     download_file_lock = fasteners.InterProcessLock(
         constants.MultiBrowser.DOWNLOAD_FILE_LOCK
@@ -253,11 +336,45 @@ def _download_file_to(file_url, destination_folder, new_file_name=None):
 
 
 def _save_data_as(data, destination_folder, file_name):
-    out_file = codecs.open(
-        destination_folder + "/" + file_name, "w+", encoding="utf-8"
+    file_io_lock = fasteners.InterProcessLock(
+        constants.MultiBrowser.FILE_IO_LOCK
     )
-    out_file.writelines(data)
-    out_file.close()
+    with file_io_lock:
+        out_file = codecs.open(
+            os.path.join(destination_folder, file_name), "w+", encoding="utf-8"
+        )
+        out_file.writelines(data)
+        out_file.close()
+
+
+def _append_data_to_file(data, destination_folder, file_name):
+    file_io_lock = fasteners.InterProcessLock(
+        constants.MultiBrowser.FILE_IO_LOCK
+    )
+    with file_io_lock:
+        existing_data = ""
+        if os.path.exists(os.path.join(destination_folder, file_name)):
+            with open(os.path.join(destination_folder, file_name), "r") as f:
+                existing_data = f.read()
+            if not existing_data.split("\n")[-1] == "":
+                existing_data += "\n"
+        out_file = codecs.open(
+            os.path.join(destination_folder, file_name), "w+", encoding="utf-8"
+        )
+        out_file.writelines("%s%s" % (existing_data, data))
+        out_file.close()
+
+
+def _get_file_data(folder, file_name):
+    file_io_lock = fasteners.InterProcessLock(
+        constants.MultiBrowser.FILE_IO_LOCK
+    )
+    with file_io_lock:
+        if not os.path.exists(os.path.join(folder, file_name)):
+            raise Exception("File not found!")
+        with open(os.path.join(folder, file_name), "r") as f:
+            data = f.read()
+        return data
 
 
 def make_css_match_first_element_only(selector):

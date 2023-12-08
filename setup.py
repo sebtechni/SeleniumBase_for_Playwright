@@ -1,5 +1,5 @@
 """Setup steps for installing SeleniumBase dependencies and plugins.
-(Uses selenium 4.x and is compatible with Python 3.6+)"""
+(Uses selenium 4.x and is compatible with Python 3.7+)"""
 from setuptools import setup, find_packages  # noqa: F401
 import os
 import sys
@@ -30,14 +30,14 @@ if sys.argv[-1] == "publish":
     confirm_text = ">>> Confirm release PUBLISH to PyPI? (yes/no): "
     reply = str(input_method(confirm_text)).lower().strip()
     if reply == "yes":
+        if sys.version_info < (3, 9):
+            print("\nERROR! Publishing to PyPI requires Python>=3.9")
+            sys.exit()
         print("\n*** Checking code health with flake8:\n")
-        if sys.version_info >= (3, 9):
-            os.system("python -m pip install 'flake8==6.0.0'")
-        else:
-            os.system("python -m pip install 'flake8==5.0.4'")
+        os.system("python -m pip install 'flake8==6.1.0'")
         flake8_status = os.system("flake8 --exclude=recordings,temp")
         if flake8_status != 0:
-            print("\nWARNING! Fix flake8 issues before publishing to PyPI!\n")
+            print("\nERROR! Fix flake8 issues before publishing to PyPI!\n")
             sys.exit()
         else:
             print("*** No flake8 issues detected. Continuing...")
@@ -45,13 +45,23 @@ if sys.argv[-1] == "publish":
         os.system("rm -f dist/*.egg; rm -f dist/*.tar.gz; rm -f dist/*.whl")
         os.system("rm -rf build/bdist.*; rm -rf build/lib")
         print("\n*** Installing build: *** (Required for PyPI uploads)\n")
-        os.system("python -m pip install --upgrade 'build>=0.10.0'")
+        os.system("python -m pip install --upgrade 'build'")
         print("\n*** Installing pkginfo: *** (Required for PyPI uploads)\n")
-        os.system("python -m pip install --upgrade 'pkginfo>=1.9.6'")
+        os.system("python -m pip install --upgrade 'pkginfo'")
+        print("\n*** Installing readme-renderer: *** (For PyPI uploads)\n")
+        os.system("python -m pip install --upgrade 'readme-renderer'")
+        print("\n*** Installing jaraco.classes: *** (For PyPI uploads)\n")
+        os.system("python -m pip install --upgrade 'jaraco.classes'")
+        print("\n*** Installing more-itertools: *** (For PyPI uploads)\n")
+        os.system("python -m pip install --upgrade 'more-itertools'")
+        print("\n*** Installing zipp: *** (Required for PyPI uploads)\n")
+        os.system("python -m pip install --upgrade 'zipp'")
+        print("\n*** Installing importlib-metadata: *** (For PyPI uploads)\n")
+        os.system("python -m pip install --upgrade 'importlib-metadata'")
+        print("\n*** Installing keyring, requests-toolbelt: *** (For PyPI)\n")
+        os.system("python -m pip install --upgrade keyring requests-toolbelt")
         print("\n*** Installing twine: *** (Required for PyPI uploads)\n")
-        os.system("python -m pip install --upgrade 'twine>=4.0.2'")
-        print("\n*** Installing tqdm: *** (Required for PyPI uploads)\n")
-        os.system("python -m pip install --upgrade tqdm")
+        os.system("python -m pip install --upgrade 'twine'")
         print("\n*** Rebuilding distribution packages: ***\n")
         os.system("python -m build")  # Create new tar/wheel
         print("\n*** Publishing The Release to PyPI: ***\n")
@@ -98,7 +108,6 @@ setup(
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
@@ -120,159 +129,135 @@ setup(
         "Topic :: Software Development :: Testing :: Traffic Generation",
         "Topic :: Utilities",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     install_requires=[
-        'pip>=21.3.1;python_version<"3.7"',
-        'pip>=22.3.1;python_version>="3.7"',
-        'packaging>=21.3;python_version<"3.7"',
-        'packaging>=23.0;python_version>="3.7"',
-        'setuptools>=59.6.0;python_version<"3.7"',
-        'setuptools>=65.7.0;python_version>="3.7"',
-        'keyring>=23.4.1;python_version<"3.8"',
-        'keyring>=23.13.1;python_version>="3.8"',
-        'tomli>=1.2.3;python_version<"3.7"',
-        'tomli>=2.0.1;python_version>="3.7"',
-        "tqdm>=4.64.1",
-        'wheel>=0.37.1;python_version<"3.7"',
-        'wheel>=0.38.4;python_version>="3.7"',
-        'attrs==22.1.0;python_version<"3.7"',
-        'attrs>=22.2.0;python_version>="3.7"',
-        "PyYAML>=6.0",
-        "certifi>=2022.12.7",
-        'filelock>=3.4.1;python_version<"3.7"',
-        'filelock>=3.9.0;python_version>="3.7"',
-        'platformdirs>=2.4.0;python_version<"3.7"',
-        'platformdirs>=3.0.0;python_version>="3.7"',
-        'pyparsing>=3.0.7;python_version<"3.7"',
-        'zipp==3.6.0;python_version<"3.7"',
-        'zipp>=3.14.0;python_version>="3.7"',
+        'pip>=23.3.1',
+        'packaging>=23.2',
+        'setuptools>=68.0.0;python_version<"3.8"',
+        'setuptools>=69.0.2;python_version>="3.8"',
+        'wheel>=0.42.0',
+        'attrs>=23.1.0',
+        "certifi>=2023.11.17",
+        'filelock>=3.12.2;python_version<"3.8"',
+        'filelock>=3.13.1;python_version>="3.8"',
+        'platformdirs>=4.0.0;python_version<"3.8"',
+        'platformdirs>=4.1.0;python_version>="3.8"',
+        'parse>=1.20.0',
+        'parse-type>=0.6.2',
         "six==1.16.0",
-        "idna==3.4",
-        'chardet==4.0.0;python_version<"3.7"',
-        'chardet==5.1.0;python_version>="3.7"',  # Stay in sync with "requests"
-        'charset-normalizer==2.0.12;python_version<"3.7"',
-        'charset-normalizer==3.0.1;python_version>="3.7"',  # Sync "requests"
-        'urllib3==1.26.12;python_version<"3.7"',
-        'urllib3==1.26.14;python_version>="3.7"',
-        'requests==2.27.1;python_version<"3.7"',
-        'requests==2.28.2;python_version>="3.7"',
-        'requests-toolbelt==0.10.1',
-        "nose==1.3.7",
-        'sniffio==1.3.0;python_version>="3.7"',
-        'h11==0.14.0;python_version>="3.7"',
-        'outcome==1.2.0;python_version>="3.7"',
-        'trio==0.22.0;python_version>="3.7"',
-        'trio-websocket==0.9.2;python_version>="3.7"',
-        'websockets==10.4;python_version>="3.7"',
-        'pyopenssl==23.0.0;python_version>="3.7"',
-        'wsproto==1.2.0;python_version>="3.7"',
-        'selenium==3.141.0;python_version<"3.7"',
-        'selenium==4.8.2;python_version>="3.7"',
-        'msedge-selenium-tools==3.141.3;python_version<"3.7"',
-        'more-itertools==8.14.0;python_version<"3.7"',
-        'more-itertools==9.0.0;python_version>="3.7"',
-        'cssselect==1.1.0;python_version<"3.7"',
-        'cssselect==1.2.0;python_version>="3.7"',
+        "idna==3.6",
+        'chardet==5.2.0',
+        'charset-normalizer==3.3.2',
+        'urllib3>=1.26.18,<2;python_version<"3.10"',
+        'urllib3>=1.26.18,<2.2.0;python_version>="3.10"',
+        'requests==2.31.0',
+        "pynose==1.4.8",
+        'sniffio==1.3.0',
+        'h11==0.14.0',
+        'outcome==1.3.0.post0',
+        'trio==0.22.2;python_version<"3.8"',
+        'trio==0.23.1;python_version>="3.8"',
+        'trio-websocket==0.11.1',
+        'wsproto==1.2.0',
+        'selenium==4.11.2;python_version<"3.8"',
+        'selenium==4.16.0;python_version>="3.8"',
+        'cssselect==1.2.0',
         "sortedcontainers==2.4.0",
-        'fasteners==0.17.3;python_version<"3.7"',
-        'fasteners==0.18;python_version>="3.7"',
-        "execnet==1.9.0",
-        'iniconfig==1.1.1;python_version<"3.7"',
-        'iniconfig==2.0.0;python_version>="3.7"',
-        "pluggy==1.0.0",
+        'fasteners==0.19',
+        'execnet==2.0.2',
+        'iniconfig==2.0.0',
+        'pluggy==1.2.0;python_version<"3.8"',
+        'pluggy==1.3.0;python_version>="3.8"',
         "py==1.11.0",
-        'pytest==7.0.1;python_version<"3.7"',
-        'pytest==7.2.1;python_version>="3.7"',
-        'pytest-forked==1.4.0;python_version<"3.7"',
-        'pytest-forked==1.6.0;python_version>="3.7"',
+        'pytest==7.4.3',
         "pytest-html==2.0.1",  # Newer ones had issues
-        'pytest-metadata==1.11.0;python_version<"3.7"',
-        'pytest-metadata==2.0.4;python_version>="3.7"',
+        'pytest-metadata==3.0.0',
         "pytest-ordering==0.6",
-        'pytest-rerunfailures==10.3;python_version<"3.7"',
-        'pytest-rerunfailures==11.1.1;python_version>="3.7"',
-        'pytest-xdist==2.5.0;python_version<"3.7"',
-        'pytest-xdist==3.2.0;python_version>="3.7"',
-        "parameterized==0.8.1",
-        "sbvirtualdisplay==1.2.0",
+        'pytest-rerunfailures==13.0',
+        'pytest-xdist==3.5.0',
+        'parameterized==0.9.0',
+        "sbvirtualdisplay==1.3.0",
         "behave==1.2.6",
-        'soupsieve==2.3.2.post1;python_version<"3.7"',
-        'soupsieve==2.4;python_version>="3.7"',
-        "beautifulsoup4==4.11.2",
-        'cryptography==36.0.2;python_version<"3.7"',
-        'cryptography==39.0.1;python_version>="3.7"',
-        "pygments==2.14.0",
+        'soupsieve==2.4.1;python_version<"3.8"',
+        'soupsieve==2.5;python_version>="3.8"',
+        "beautifulsoup4==4.12.2",
+        'pygments==2.17.2',
         'pyreadline3==3.4.1;platform_system=="Windows"',
-        "tabcompleter==1.1.0",
-        "pdbp==1.2.8",
-        'colorama==0.4.5;python_version<"3.7"',
-        'colorama==0.4.6;python_version>="3.7"',
-        'exceptiongroup==1.1.0;python_version>="3.7"',
-        'importlib-metadata==4.2.0;python_version<"3.8"',
-        "pycparser==2.21",
-        'pyotp==2.7.0;python_version<"3.7"',
-        'pyotp==2.8.0;python_version>="3.7"',
-        "cffi==1.15.1",
-        'typing-extensions==4.1.1;python_version<"3.7"',
-        'typing-extensions==4.4.0;python_version>="3.7" and python_version<"3.9"',  # noqa: E501
-        'commonmark==0.9.1;python_version<"3.7"',  # For old "rich"
-        'markdown-it-py==2.1.0;python_version>="3.7"',  # For new "rich"
-        'mdurl==0.1.2;python_version>="3.7"',  # For new "rich"
-        'rich==12.6.0;python_version<"3.7"',
-        'rich==13.3.1;python_version>="3.7"',
+        "tabcompleter==1.3.0",
+        "pdbp==1.5.0",
+        'colorama==0.4.6',
+        'exceptiongroup==1.2.0',
+        'pyotp==2.9.0',
+        'markdown-it-py==2.2.0;python_version<"3.8"',
+        'markdown-it-py==3.0.0;python_version>="3.8"',
+        'mdurl==0.1.2',
+        'rich==13.7.0',
     ],
     extras_require={
+        # pip install -e .[allure]
+        # Usage: pytest --alluredir=allure_results
+        # Serve: allure serve allure_results
+        "allure": [
+            'allure-pytest==2.13.2',
+            'allure-python-commons==2.13.2',
+            'allure-behave==2.13.2',
+        ],
         # pip install -e .[coverage]
         # Usage: coverage run -m pytest; coverage html; coverage report
         "coverage": [
-            'coverage==6.2;python_version<"3.7"',
-            'coverage==7.1.0;python_version>="3.7"',
-            "pytest-cov==4.0.0",
+            'coverage==7.2.7;python_version<"3.8"',
+            'coverage==7.3.2;python_version>="3.8"',
+            'pytest-cov==4.1.0',
         ],
         # pip install -e .[flake8]
         # Usage: flake8
         "flake8": [
             'flake8==5.0.4;python_version<"3.9"',
-            'flake8==6.0.0;python_version>="3.9"',
+            'flake8==6.1.0;python_version>="3.9"',
             "mccabe==0.7.0",
             'pyflakes==2.5.0;python_version<"3.9"',
-            'pyflakes==3.0.1;python_version>="3.9"',
+            'pyflakes==3.1.0;python_version>="3.9"',
             'pycodestyle==2.9.1;python_version<"3.9"',
-            'pycodestyle==2.10.0;python_version>="3.9"',
+            'pycodestyle==2.11.1;python_version>="3.9"',
         ],
         # pip install -e .[ipdb]
         # (Not needed for debugging anymore. SeleniumBase now includes "pdbp".)
         "ipdb": [
-            "ipdb==0.13.11",
-            'ipython==7.16.3;python_version<"3.7"',
-            'ipython==7.34.0;python_version>="3.7"',
+            "ipdb==0.13.13",
+            'ipython==7.34.0',
         ],
         # pip install -e .[pdfminer]
+        # (An optional library for parsing PDF files.)
         "pdfminer": [
-            'pdfminer.six==20211012;python_version<"3.7"',
-            'pdfminer.six==20221105;python_version>="3.7"',
+            'pdfminer.six==20221105',
+            'cryptography==39.0.2;python_version<"3.9"',
+            'cryptography==41.0.7;python_version>="3.9"',
+            'cffi==1.15.1;python_version<"3.8"',
+            'cffi==1.16.0;python_version>="3.8"',
+            "pycparser==2.21",
+
         ],
         # pip install -e .[pillow]
+        # (An optional library for image-processing.)
         "pillow": [
-            'Pillow==8.4.0;python_version<"3.7"',
-            'Pillow==9.4.0;python_version>="3.7"',
+            'Pillow==9.5.0;python_version<"3.8"',
+            'Pillow==10.1.0;python_version>="3.8"',
         ],
         # pip install -e .[psutil]
         "psutil": [
-            "psutil==5.9.4",
+            "psutil==5.9.6",
         ],
         # pip install -e .[selenium-wire]
         "selenium-wire": [
-            'selenium-wire==5.1.0;python_version>="3.7"',
-            'pyparsing==3.0.9;python_version>="3.7"',
-            'Brotli==1.0.9;python_version>="3.7"',
-            'blinker==1.5;python_version>="3.7"',
-            'h2==4.1.0;python_version>="3.7"',
-            'hpack==4.0.0;python_version>="3.7"',
-            'hyperframe==6.0.1;python_version>="3.7"',
-            'kaitaistruct==0.10;python_version>="3.7"',
-            'pyasn1==0.4.8;python_version>="3.7"',
-            'zstandard==0.19.0;python_version>="3.7"',
+            'selenium-wire==5.1.0',
+            'Brotli==1.1.0',
+            'blinker==1.7.0',
+            'h2==4.1.0',
+            'hpack==4.0.0',
+            'hyperframe==6.0.1',
+            'kaitaistruct==0.10',
+            'pyasn1==0.5.1',
+            'zstandard==0.22.0',
         ],
     },
     packages=[

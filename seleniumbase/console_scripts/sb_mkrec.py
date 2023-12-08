@@ -35,11 +35,6 @@ import shutil
 import os
 import sys
 
-PLATFORM = sys.platform
-IS_WINDOWS = False
-if "win32" in PLATFORM or "win64" in PLATFORM or "x64" in PLATFORM:
-    IS_WINDOWS = True
-
 
 def invalid_run_command(msg=None):
     exp = "  ** mkrec / record / codegen **\n\n"
@@ -76,7 +71,13 @@ def set_colors(use_colors):
     c7 = ""
     cr = ""
     if use_colors:
-        colorama.init(autoreset=True)
+        if (
+            "win32" in sys.platform
+            and hasattr(colorama, "just_fix_windows_console")
+        ):
+            colorama.just_fix_windows_console()
+        else:
+            colorama.init(autoreset=True)
         c0 = colorama.Fore.BLUE + colorama.Back.LIGHTCYAN_EX
         c1 = colorama.Fore.RED + colorama.Back.LIGHTYELLOW_EX
         c2 = colorama.Fore.LIGHTRED_EX + colorama.Back.LIGHTYELLOW_EX
@@ -87,7 +88,6 @@ def set_colors(use_colors):
 
 
 def main():
-    platform = sys.platform
     help_me = False
     error_msg = None
     invalid_cmd = None
@@ -99,7 +99,11 @@ def main():
     force_gui = False
     rec_behave = False
 
-    if "linux" in platform:
+    sys_executable = sys.executable
+    if " " in sys_executable:
+        sys_executable = "python"
+
+    if "linux" in sys.platform:
         use_colors = False
     c0, c1, c2, c5, c7, cr = set_colors(use_colors)
 
@@ -142,7 +146,7 @@ def main():
             elif option.lower() == "--edge":
                 use_edge = True
             elif option.lower() in ("--gui", "--headed"):
-                if "linux" in platform:
+                if "linux" in sys.platform:
                     force_gui = True
             elif option.lower() in ("--uc", "--undetected", "--undetectable"):
                 use_uc = True
@@ -189,9 +193,19 @@ def main():
     print(success)
     run_cmd = None
     if not start_page:
-        run_cmd = "pytest %s --rec -q -s" % file_name
+        run_cmd = "%s -m pytest %s --rec -q -s" % (sys_executable, file_name)
     else:
-        run_cmd = "pytest %s --rec -q -s --url=%s" % (file_name, start_page)
+        run_cmd = "%s -m pytest %s --rec -q -s --url=%s" % (
+            sys_executable, file_name, start_page
+        )
+        if '"' not in start_page:
+            run_cmd = '%s -m pytest %s --rec -q -s --url="%s"' % (
+                sys_executable, file_name, start_page
+            )
+        elif "'" not in start_page:
+            run_cmd = "%s -m pytest %s --rec -q -s --url='%s'" % (
+                sys_executable, file_name, start_page
+            )
     if use_edge:
         run_cmd += " --edge"
     if force_gui:
@@ -200,8 +214,6 @@ def main():
         run_cmd += " --uc"
     if rec_behave:
         run_cmd += " --rec-behave"
-    if IS_WINDOWS:
-        run_cmd = "python.exe -m %s" % run_cmd
     print(run_cmd)
     os.system(run_cmd)
     if os.path.exists(file_path):
@@ -209,9 +221,7 @@ def main():
     recorded_filename = file_name[:-3] + "_rec.py"
     recordings_dir = os.path.join(dir_name, "recordings")
     recorded_file = os.path.join(recordings_dir, recorded_filename)
-    prefix = ""
-    if IS_WINDOWS:
-        prefix = "python.exe -m "
+    prefix = "%s -m " % sys_executable
     if " " not in recorded_file:
         os.system("%sseleniumbase print %s -n" % (prefix, recorded_file))
     elif '"' not in recorded_file:

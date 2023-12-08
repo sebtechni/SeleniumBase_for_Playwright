@@ -69,6 +69,7 @@
 <div><a href="https://seleniumbase.io/examples/tour_examples/ReadMe/"><b>Tour Examples</b></a></div>
 <div><a href="https://seleniumbase.io/examples/presenter/ReadMe/"><b>Presentation Maker</b></a></div>
 <div><a href="https://seleniumbase.io/examples/chart_maker/ReadMe/"><b>Chart Maker</b></a></div>
+<div><a href="https://seleniumbase.io/help_docs/handling_iframes/"><b>Handling iframes</b></a></div>
 <div><a href="https://seleniumbase.io/help_docs/mysql_installation/"><b>MySQL Installation Overview</b></a></div>
 <div><a href="https://seleniumbase.io/seleniumbase/utilities/selenium_grid/ReadMe/"><b>Using the Selenium Grid</b></a></div>
 <div><a href="https://seleniumbase.io/help_docs/desired_capabilities/"><b>Browser Desired Capabilities</b></a></div>
@@ -80,11 +81,13 @@
 
 <h3>Demo Pages / Web Examples</h3>
 
+<div><a href="https://seleniumbase.io/coffee/"><b>Coffee Cart (Test Page)</b></a></div>
 <div><a href="https://seleniumbase.io/demo_page"><b>Demo Page (Test Page)</b></a></div>
+<div><a href="https://seleniumbase.io/simple/login"><b>Simple App (Test Page)</b></a></div>
 <div><a href="https://seleniumbase.io/realworld/login"><b>MFA Login (Test Page)</b></a></div>
 <div><a href="https://seleniumbase.io/tinymce/"><b>TinyMCE (Test Page)</b></a></div>
 <div><a href="https://seleniumbase.io/error_page/"><b>Error Page (Test Page)</b></a></div>
-<div><a href="https://seleniumbase.io/other/drag_and_drop"><b>Drag-&-Drop (Test Page)</b></a></div>
+<div><a href="https://seleniumbase.io/other/drag_and_drop"><b>Drag & Drop (Test Page)</b></a></div>
 <div><a href="https://seleniumbase.io/devices/"><b>Device Farm (Virtual)</b></a></div>
 <div><a href="https://seleniumbase.io/w3schools/"><b>HTML Playground Page</b></a></div>
 <div><a href="https://seleniumbase.io/w3schools/sbase"><b>SeleniumBase in iframe</b></a></div>
@@ -134,8 +137,9 @@
 <div><a href="https://seleniumbase.dev/help_docs/js_package_manager"><b>JS Package Manager</b></a></div>
 <div><a href="https://seleniumbase.dev/examples/tour_examples/"><b>Tour Examples</b></a></div>
 <div><a href="https://seleniumbase.dev/examples/presenter/"><b>Presentation Maker</b></a></div>
-<div><a href="https://seleniumbase.dev/examples/chart_maker/ReadMe/"><b>Chart Maker</b></a></div>
-<div><a href="https://seleniumbase.dev/help_docs/mysql_installation"><b>MySQL Installation Overview</b></a></div>
+<div><a href="https://seleniumbase.dev/examples/chart_maker/"><b>Chart Maker</b></a></div>
+<div><a href="https://seleniumbase.dev/help_docs/mysql_installation"><b>Handling iframes</b></a></div>
+<div><a href="https://seleniumbase.dev/help_docs/handling_iframes"><b>MySQL Installation Overview</b></a></div>
 <div><a href="https://seleniumbase.dev/seleniumbase/utilities/selenium_grid/"><b>Using the Selenium Grid</b></a></div>
 <div><a href="https://seleniumbase.dev/help_docs/desired_capabilities"><b>Browser Desired Capabilities</b></a></div>
 <div><a href="https://seleniumbase.dev/help_docs/using_safari_driver"><b>Safari Driver Detailed Info</b></a></div>

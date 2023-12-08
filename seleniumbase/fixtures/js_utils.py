@@ -1,7 +1,4 @@
-"""
-This module contains useful Javascript utility methods for base_case.py
-These helper methods SHOULD NOT be called directly from tests.
-"""
+"""This module contains useful Javascript utility methods for BaseCase."""
 import re
 import requests
 import time
@@ -10,19 +7,18 @@ from selenium.common.exceptions import WebDriverException
 from seleniumbase import config as sb_config
 from seleniumbase.config import settings
 from seleniumbase.fixtures import constants
+from seleniumbase.fixtures import css_to_xpath
 
 
 def wait_for_ready_state_complete(driver, timeout=settings.LARGE_TIMEOUT):
-    """
-    The DOM (Document Object Model) has a property called "readyState".
+    """The DOM (Document Object Model) has a property called "readyState".
     When the value of this becomes "complete", page resources are considered
       fully loaded (although AJAX and other loads might still be happening).
     This method will wait until document.readyState == "complete".
     This may be redundant, as methods already wait for page elements to load.
     If the timeout is exceeded, the test will still continue
       because readyState == "interactive" may be good enough.
-    (Previously, tests would fail immediately if exceeding the timeout.)
-    """
+    (Previously, tests would fail immediately if exceeding the timeout.)"""
     if hasattr(settings, "SKIP_JS_WAITS") and settings.SKIP_JS_WAITS:
         return
     if sb_config.time_limit and not sb_config.recorder_mode:
@@ -99,7 +95,7 @@ def wait_for_angularjs(driver, timeout=settings.LARGE_TIMEOUT, **kwargs):
 
 def is_html_inspector_activated(driver):
     try:
-        driver.execute_script("HTMLInspector")  # Fails if not defined
+        driver.execute_script("HTMLInspector;")  # Fails if not defined
         return True
     except Exception:
         return False
@@ -107,7 +103,7 @@ def is_html_inspector_activated(driver):
 
 def is_jquery_activated(driver):
     try:
-        driver.execute_script("jQuery('html')")  # Fails if jq is not defined
+        driver.execute_script("jQuery('html');")  # Fails if jq is not defined
         return True
     except Exception:
         return False
@@ -115,13 +111,13 @@ def is_jquery_activated(driver):
 
 def wait_for_jquery_active(driver, timeout=None):
     if not timeout:
-        timeout = 22
+        timeout = 2
     else:
         timeout = int(timeout * 10.0)
     for x in range(timeout):
         # jQuery needs a small amount of time to activate.
         try:
-            driver.execute_script("jQuery('html')")
+            driver.execute_script("jQuery('html');")
             wait_for_ready_state_complete(driver)
             wait_for_angularjs(driver)
             return
@@ -157,8 +153,8 @@ def raise_unable_to_load_jquery_exception(driver):
 
 
 def activate_jquery(driver):
-    """If "jQuery is not defined" on a website, use this method to activate it.
-    This method is needed because jQuery is not always defined on web sites."""
+    # If "jQuery is not defined" on a website, use this method to activate it.
+    # This method is needed because jQuery is not always defined on web sites.
     try:
         # Let's first find out if jQuery is already defined.
         driver.execute_script("jQuery('html');")
@@ -191,8 +187,7 @@ def are_quotes_escaped(string):
 
 
 def escape_quotes_if_needed(string):
-    """
-    re.escape() works differently in Python 3.7.0 than earlier versions:
+    """re.escape() works differently in Python 3.7.0 than earlier versions:
 
     Python 3.6.5:
     >>> import re
@@ -215,10 +210,8 @@ def escape_quotes_if_needed(string):
 
 
 def is_in_frame(driver):
-    """
-    Returns True if the driver has switched to a frame.
-    Returns False if the driver was on default content.
-    """
+    # Returns True if the driver has switched to a frame.
+    # Returns False if the driver was on default content.
     in_basic_frame = driver.execute_script(
         """
         var frame = window.frameElement;
@@ -319,6 +312,41 @@ def wait_for_css_query_selector(
     )
 
 
+def is_valid_by(by):
+    return by in [
+        "css selector", "class name", "id", "name",
+        "link text", "xpath", "tag name", "partial link text",
+    ]
+
+
+def swap_selector_and_by_if_reversed(selector, by):
+    if not is_valid_by(by) and is_valid_by(selector):
+        selector, by = by, selector
+    return (selector, by)
+
+
+def highlight(driver, selector, by="css selector", loops=4):
+    """For driver.highlight() / driver.page.highlight()"""
+    swap_selector_and_by_if_reversed(selector, by)
+    if ":contains(" in selector:
+        by = "xpath"
+        selector = css_to_xpath.convert_css_to_xpath(selector)
+    element = None
+    try:
+        element = driver.find_element(by, selector)
+    except Exception:
+        time.sleep(1)
+        element = driver.find_element(by, selector)
+    o_bs = ""  # original_box_shadow
+    style = element.get_attribute("style")
+    if style and "box-shadow: " in style:
+        box_start = style.find("box-shadow: ")
+        box_end = style.find(";", box_start) + 1
+        original_box_shadow = style[box_start:box_end]
+        o_bs = original_box_shadow
+    highlight_element_with_js(driver, element, loops=loops, o_bs=o_bs)
+
+
 def highlight_with_js(driver, selector, loops=4, o_bs=""):
     try:
         # This closes any pop-up alerts
@@ -415,6 +443,82 @@ def highlight_with_js(driver, selector, loops=4, o_bs=""):
     )
     try:
         driver.execute_script(script)
+    except Exception:
+        return
+
+
+def highlight_element_with_js(driver, element, loops=4, o_bs=""):
+    try:
+        # This closes any pop-up alerts
+        driver.execute_script("")
+    except Exception:
+        pass
+    script = (
+        """arguments[0].style.boxShadow =
+        '0px 0px 6px 6px rgba(128, 128, 128, 0.5)';"""
+    )
+    try:
+        driver.execute_script(script, element)
+    except Exception:
+        return
+    for n in range(loops):
+        script = (
+            """arguments[0].style.boxShadow =
+            '0px 0px 6px 6px rgba(255, 0, 0, 1)';"""
+        )
+        try:
+            driver.execute_script(script, element)
+        except Exception:
+            return
+        time.sleep(0.0181)
+        script = (
+            """arguments[0].style.boxShadow =
+            '0px 0px 6px 6px rgba(128, 0, 128, 1)';"""
+        )
+        try:
+            driver.execute_script(script, element)
+        except Exception:
+            return
+        time.sleep(0.0181)
+        script = (
+            """arguments[0].style.boxShadow =
+            '0px 0px 6px 6px rgba(0, 0, 255, 1)';"""
+        )
+        try:
+            driver.execute_script(script, element)
+        except Exception:
+            return
+        time.sleep(0.0181)
+        script = (
+            """arguments[0].style.boxShadow =
+            '0px 0px 6px 6px rgba(0, 255, 0, 1)';"""
+        )
+        try:
+            driver.execute_script(script, element)
+        except Exception:
+            return
+        time.sleep(0.0181)
+        script = (
+            """arguments[0].style.boxShadow =
+            '0px 0px 6px 6px rgba(128, 128, 0, 1)';"""
+        )
+        try:
+            driver.execute_script(script, element)
+        except Exception:
+            return
+        time.sleep(0.0181)
+        script = (
+            """arguments[0].style.boxShadow =
+            '0px 0px 6px 6px rgba(128, 0, 128, 1)';"""
+        )
+        try:
+            driver.execute_script(script, element)
+        except Exception:
+            return
+        time.sleep(0.0181)
+    script = """arguments[0].style.boxShadow = '%s';""" % (o_bs)
+    try:
+        driver.execute_script(script, element)
     except Exception:
         return
 
@@ -539,7 +643,7 @@ def add_css_style(driver, css_style):
 def add_js_code_from_link(driver, js_link):
     if js_link.startswith("//"):
         js_link = "http:" + js_link
-    js_code = requests.get(js_link).text
+    js_code = requests.get(js_link, timeout=5).text
     add_js_code_script = (
         """var body_tag=document.getElementsByTagName('body').item(0);"""
         """var script_tag=document.createElement("script");"""
@@ -590,7 +694,7 @@ def add_meta_tag(driver, http_equiv=None, content=None):
 
 def is_jquery_confirm_activated(driver):
     try:
-        driver.execute_script("jconfirm")  # Fails if jq_confirm is not defined
+        driver.execute_script("jconfirm;")  # Fails if jconfirm is not defined
         return True
     except Exception:
         return False
@@ -607,10 +711,13 @@ def activate_jquery_confirm(driver):
     add_css_link(driver, jq_confirm_css)
     add_js_link(driver, jq_confirm_js)
 
-    for x in range(25):
+    for x in range(28):
         # jQuery-Confirm needs a small amount of time to load & activate.
+        if x == 14:
+            add_css_link(driver, jq_confirm_css)
+            add_js_link(driver, jq_confirm_js)
         try:
-            driver.execute_script("jconfirm")
+            driver.execute_script("jconfirm;")
             wait_for_ready_state_complete(driver)
             wait_for_angularjs(driver)
             return
@@ -636,7 +743,7 @@ def activate_html_inspector(driver):
     for x in range(25):
         # HTML-Inspector needs a small amount of time to load & activate.
         try:
-            driver.execute_script("HTMLInspector")
+            driver.execute_script("HTMLInspector;")
             wait_for_ready_state_complete(driver)
             wait_for_angularjs(driver)
             return
@@ -671,7 +778,7 @@ def activate_messenger(driver):
 
     if not is_jquery_activated(driver):
         add_js_link(driver, jquery_js)
-        wait_for_jquery_active(driver, timeout=1)
+        wait_for_jquery_active(driver, timeout=1.1)
     add_css_link(driver, messenger_css)
     add_css_link(driver, msgr_theme_flat_css)
     add_css_link(driver, msgr_theme_future_css)
@@ -756,14 +863,15 @@ def set_messenger_theme(
     try:
         driver.execute_script(msg_style)
     except Exception:
-        time.sleep(0.05)
+        time.sleep(0.03)
         activate_messenger(driver)
-        time.sleep(0.05)
+        time.sleep(0.15)
         try:
             driver.execute_script(msg_style)
+            time.sleep(0.02)
         except Exception:
             pass
-    time.sleep(0.1)
+    time.sleep(0.05)
 
 
 def post_message(driver, message, msg_dur=None, style="info"):
@@ -787,11 +895,11 @@ def post_message(driver, message, msg_dur=None, style="info"):
         try:
             driver.execute_script(messenger_script)
         except Exception:
-            time.sleep(0.2)
+            time.sleep(0.17)
             activate_messenger(driver)
-            time.sleep(0.2)
+            time.sleep(0.17)
             set_messenger_theme(driver)
-            time.sleep(0.3)
+            time.sleep(0.27)
             driver.execute_script(messenger_script)
 
 
@@ -803,7 +911,7 @@ def post_messenger_success_message(driver, message, msg_dur=None):
         theme = "future"
         location = "bottom_right"
         if hasattr(sb_config, "mobile_emulator") and sb_config.mobile_emulator:
-            location = "top_center"
+            location = "top_right"
         set_messenger_theme(driver, theme=theme, location=location)
         post_message(driver, message, msg_dur, style="success")
         time.sleep(msg_dur + 0.07)
@@ -897,19 +1005,80 @@ def highlight_with_js_2(driver, message, selector, o_bs, msg_dur):
     except Exception:
         return
     time.sleep(0.0181)
-
     try:
         activate_jquery(driver)
         post_messenger_success_message(driver, message, msg_dur)
     except Exception:
         pass
-
     script = """document.querySelector('%s').style.boxShadow = '%s';""" % (
         selector,
         o_bs,
     )
     try:
         driver.execute_script(script)
+    except Exception:
+        return
+
+
+def highlight_element_with_js_2(driver, message, element, o_bs, msg_dur):
+    try:
+        # This closes any pop-up alerts
+        driver.execute_script("")
+    except Exception:
+        pass
+    script = (
+        """arguments[0].style.boxShadow =
+        '0px 0px 6px 6px rgba(128, 128, 128, 0.5)';"""
+    )
+    try:
+        driver.execute_script(script, element)
+    except Exception:
+        return
+    time.sleep(0.0181)
+    script = (
+        """arguments[0].style.boxShadow =
+        '0px 0px 6px 6px rgba(205, 30, 0, 1)';"""
+    )
+    try:
+        driver.execute_script(script, element)
+    except Exception:
+        return
+    time.sleep(0.0181)
+    script = (
+        """arguments[0].style.boxShadow =
+        '0px 0px 6px 6px rgba(128, 0, 128, 1)';"""
+    )
+    try:
+        driver.execute_script(script, element)
+    except Exception:
+        return
+    time.sleep(0.0181)
+    script = (
+        """arguments[0].style.boxShadow =
+        '0px 0px 6px 6px rgba(50, 50, 128, 1)';"""
+    )
+    try:
+        driver.execute_script(script, element)
+    except Exception:
+        return
+    time.sleep(0.0181)
+    script = (
+        """arguments[0].style.boxShadow =
+        '0px 0px 6px 6px rgba(50, 205, 50, 1)';"""
+    )
+    try:
+        driver.execute_script(script, element)
+    except Exception:
+        return
+    time.sleep(0.0181)
+    try:
+        activate_jquery(driver)
+        post_messenger_success_message(driver, message, msg_dur)
+    except Exception:
+        pass
+    script = """arguments[0].style.boxShadow = '%s';""" % (o_bs)
+    try:
+        driver.execute_script(script, element)
     except Exception:
         return
 
@@ -1001,6 +1170,19 @@ def get_active_element_css(driver):
     from seleniumbase.js_code import active_css_js
 
     return driver.execute_script(active_css_js.get_active_element_css)
+
+
+def get_locale_code(driver):
+    script = "return navigator.language || navigator.languages[0];"
+    return driver.execute_script(script)
+
+
+def get_origin(driver):
+    return driver.execute_script("return window.location.origin;")
+
+
+def get_user_agent(driver):
+    return driver.execute_script("return navigator.userAgent;")
 
 
 def get_scroll_distance_to_element(driver, element):

@@ -1,6 +1,11 @@
 import os
+import re
+import warnings
 import zipfile
+from seleniumbase.config import proxy_list
+from seleniumbase.config import settings
 from seleniumbase.fixtures import constants
+from seleniumbase.fixtures import page_utils
 
 DOWNLOADS_DIR = constants.Files.DOWNLOADS_FOLDER
 PROXY_ZIP_PATH = os.path.join(DOWNLOADS_DIR, "proxy.zip")
@@ -9,7 +14,9 @@ PROXY_DIR_PATH = os.path.join(DOWNLOADS_DIR, "proxy_ext_dir")
 PROXY_DIR_LOCK = os.path.join(DOWNLOADS_DIR, "proxy_dir.lock")
 
 
-def create_proxy_ext(proxy_string, proxy_user, proxy_pass, zip_it=True):
+def create_proxy_ext(
+    proxy_string, proxy_user, proxy_pass, bypass_list=None, zip_it=True
+):
     """Implementation of https://stackoverflow.com/a/35293284 for
     https://stackoverflow.com/questions/12848327/
     (Run Selenium on a proxy server that requires authentication.)
@@ -17,8 +24,14 @@ def create_proxy_ext(proxy_string, proxy_user, proxy_pass, zip_it=True):
     CHROMIUM-ONLY! *** Only Chrome and Edge browsers are supported. ***
     """
     background_js = None
+    if not bypass_list:
+        bypass_list = ""
     if proxy_string:
-        proxy_host = proxy_string.split(":")[0]
+        proxy_protocol = ""
+        if proxy_string.count("://") == 1:
+            proxy_protocol = proxy_string.split("://")[0] + "://"
+            proxy_string = proxy_string.split("://")[1]
+        proxy_host = proxy_protocol + proxy_string.split(":")[0]
         proxy_port = proxy_string.split(":")[1]
         background_js = (
             """var config = {\n"""
@@ -29,6 +42,7 @@ def create_proxy_ext(proxy_string, proxy_user, proxy_pass, zip_it=True):
             """        host: "%s",\n"""
             """        port: parseInt("%s")\n"""
             """      },\n"""
+            """    bypassList: ["%s"]\n"""
             """    }\n"""
             """  };\n"""
             """chrome.proxy.settings.set("""
@@ -46,14 +60,17 @@ def create_proxy_ext(proxy_string, proxy_user, proxy_pass, zip_it=True):
             """        callbackFn,\n"""
             """        {urls: ["<all_urls>"]},\n"""
             """        ['blocking']\n"""
-            """);""" % (proxy_host, proxy_port, proxy_user, proxy_pass)
+            """);""" % (
+                proxy_host, proxy_port, bypass_list, proxy_user, proxy_pass
+            )
         )
     else:
         background_js = (
             """var config = {\n"""
             """    mode: "fixed_servers",\n"""
             """    rules: {\n"""
-            """    }\n"""
+            """    },\n"""
+            """    bypassList: ["%s"]\n"""
             """  };\n"""
             """chrome.proxy.settings.set("""
             """{value: config, scope: "regular"}, function() {"""
@@ -70,7 +87,7 @@ def create_proxy_ext(proxy_string, proxy_user, proxy_pass, zip_it=True):
             """        callbackFn,\n"""
             """        {urls: ["<all_urls>"]},\n"""
             """        ['blocking']\n"""
-            """);""" % (proxy_user, proxy_pass)
+            """);""" % (bypass_list, proxy_user, proxy_pass)
         )
     manifest_json = (
         """{\n"""
@@ -106,7 +123,7 @@ def create_proxy_ext(proxy_string, proxy_user, proxy_pass, zip_it=True):
             zf.writestr("manifest.json", manifest_json)
             zf.close()
         else:
-            proxy_ext_dir = os.path.join(downloads_path, "proxy_ext_dir")
+            proxy_ext_dir = PROXY_DIR_PATH
             if not os.path.exists(proxy_ext_dir):
                 os.mkdir(proxy_ext_dir)
             manifest_file = os.path.join(proxy_ext_dir, "manifest.json")
@@ -131,3 +148,63 @@ def remove_proxy_zip_if_present():
             os.remove(PROXY_ZIP_LOCK)
     except Exception:
         pass
+
+
+def validate_proxy_string(proxy_string):
+    if proxy_string in proxy_list.PROXY_LIST.keys():
+        proxy_string = proxy_list.PROXY_LIST[proxy_string]
+        if not proxy_string:
+            return None
+    valid = False
+    val_ip = re.match(
+        r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$", proxy_string
+    )
+    if not val_ip:
+        if proxy_string.startswith("http://"):
+            proxy_string = proxy_string.split("http://")[1]
+        elif proxy_string.startswith("https://"):
+            proxy_string = proxy_string.split("https://")[1]
+        elif "://" in proxy_string:
+            if not proxy_string.startswith("socks4://") and not (
+                proxy_string.startswith("socks5://")
+            ):
+                proxy_string = proxy_string.split("://")[1]
+        chunks = proxy_string.split(":")
+        if len(chunks) == 2:
+            if re.match(r"^\d+$", chunks[1]):
+                if page_utils.is_valid_url("http://" + proxy_string):
+                    valid = True
+        elif len(chunks) == 3:
+            if re.match(r"^\d+$", chunks[2]):
+                if page_utils.is_valid_url("http:" + ":".join(chunks[1:])):
+                    if chunks[0] == "http":
+                        valid = True
+                    elif chunks[0] == "https":
+                        valid = True
+                    elif chunks[0] == "socks4":
+                        valid = True
+                    elif chunks[0] == "socks5":
+                        valid = True
+    else:
+        proxy_string = val_ip.group()
+        valid = True
+    if not valid:
+        __display_proxy_warning(proxy_string)
+        proxy_string = None
+    return proxy_string
+
+
+def __display_proxy_warning(proxy_string):
+    message = (
+        '\nWARNING: Proxy String ["%s"] is NOT in the expected '
+        '"ip_address:port" or "server:port" format, '
+        "(OR the key does not exist in "
+        "seleniumbase.config.proxy_list.PROXY_LIST)." % proxy_string
+    )
+    if settings.RAISE_INVALID_PROXY_STRING_EXCEPTION:
+        raise Exception(message)
+    else:
+        message += " *** DEFAULTING to NOT USING a Proxy Server! ***"
+        warnings.simplefilter("always", Warning)  # See Warnings
+        warnings.warn(message, category=Warning, stacklevel=2)
+        warnings.simplefilter("default", Warning)  # Set Default
