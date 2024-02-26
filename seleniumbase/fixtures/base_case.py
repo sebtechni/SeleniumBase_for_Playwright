@@ -251,7 +251,15 @@ class BaseCase(unittest.TestCase):
         try:
             self.driver.get(url)
         except Exception as e:
-            if (
+            if not hasattr(e, "msg") and hasattr(self.driver, "default_get"):
+                try:
+                    self._check_browser()
+                    time.sleep(0.4)
+                except Exception:
+                    logging.debug("Browser crashed! Will open new browser!")
+                    self.driver = self.get_new_driver()
+                self.driver.default_get(url)
+            elif (
                 "ERR_CONNECTION_TIMED_OUT" in e.msg
                 or "ERR_CONNECTION_CLOSED" in e.msg
                 or "ERR_CONNECTION_RESET" in e.msg
@@ -943,6 +951,10 @@ class BaseCase(unittest.TestCase):
                     self.wait_for_ready_state_complete()
             else:
                 element.send_keys(text[:-1])
+                if self.slow_mode or self.demo_mode:
+                    self.__demo_mode_pause_if_active(tiny=True)
+                else:
+                    time.sleep(0.0135)
                 try:
                     element.send_keys(Keys.RETURN)
                 except WebDriverException as e:
@@ -968,6 +980,10 @@ class BaseCase(unittest.TestCase):
                 element.send_keys(text)
             else:
                 element.send_keys(text[:-1])
+                if self.slow_mode or self.demo_mode:
+                    self.__demo_mode_pause_if_active(tiny=True)
+                else:
+                    time.sleep(0.0135)
                 try:
                     element.send_keys(Keys.RETURN)
                 except WebDriverException as e:
@@ -1018,7 +1034,7 @@ class BaseCase(unittest.TestCase):
             # Use after "\t" or Keys.TAB to cycle through elements first.
             self.click_active_element()
             return
-        element = self.wait_for_element_visible(
+        element = self.wait_for_element_present(
             selector, by=by, timeout=timeout
         )
         if (
@@ -1046,6 +1062,10 @@ class BaseCase(unittest.TestCase):
                 element.send_keys(text)
             else:
                 element.send_keys(text[:-1])
+                if self.slow_mode or self.demo_mode:
+                    self.__demo_mode_pause_if_active(tiny=True)
+                else:
+                    time.sleep(0.0135)
                 element.send_keys(Keys.RETURN)
                 if settings.WAIT_FOR_RSC_ON_PAGE_LOADS:
                     self.wait_for_ready_state_complete()
@@ -1059,6 +1079,10 @@ class BaseCase(unittest.TestCase):
                 element.send_keys(text)
             else:
                 element.send_keys(text[:-1])
+                if self.slow_mode or self.demo_mode:
+                    self.__demo_mode_pause_if_active(tiny=True)
+                else:
+                    time.sleep(0.0135)
                 element.send_keys(Keys.RETURN)
                 if settings.WAIT_FOR_RSC_ON_PAGE_LOADS:
                     self.wait_for_ready_state_complete()
@@ -1113,7 +1137,7 @@ class BaseCase(unittest.TestCase):
     def press_keys(self, selector, text, by="css selector", timeout=None):
         """Use send_keys() to press one key at a time."""
         self.wait_for_ready_state_complete()
-        element = self.wait_for_element_clickable(
+        element = self.wait_for_element_present(
             selector, by=by, timeout=timeout
         )
         if self.demo_mode:
@@ -1135,6 +1159,10 @@ class BaseCase(unittest.TestCase):
         for key in text:
             element.send_keys(key)
         if press_enter:
+            if self.slow_mode or self.demo_mode:
+                self.__demo_mode_pause_if_active(tiny=True)
+            else:
+                time.sleep(0.0135)
             element.send_keys(Keys.RETURN)
             if settings.WAIT_FOR_RSC_ON_PAGE_LOADS:
                 if not self.undetectable:
@@ -1340,7 +1368,7 @@ class BaseCase(unittest.TestCase):
         If the start_page is not set, then "about:blank" will be used."""
         self.__check_scope()
         start_page = self.start_page
-        if type(start_page) is str:
+        if isinstance(start_page, str):
             start_page = start_page.strip()  # Remove extra whitespace
         if start_page and len(start_page) >= 4:
             if page_utils.is_valid_url(start_page):
@@ -2134,9 +2162,9 @@ class BaseCase(unittest.TestCase):
         selector, by = self.__recalculate_selector(selector, by)
         self.wait_for_ready_state_complete()
         time.sleep(0.05)
-        v_elems = page_actions.find_visible_elements(self.driver, selector, by)
-        if limit and limit > 0 and len(v_elems) > limit:
-            v_elems = v_elems[:limit]
+        v_elems = page_actions.find_visible_elements(
+            self.driver, selector, by, limit
+        )
         return v_elems
 
     def click_visible_elements(
@@ -3390,7 +3418,7 @@ class BaseCase(unittest.TestCase):
             time.sleep(0.05)
             if self.undetectable:
                 time.sleep(0.05)
-        if type(frame) is str and self.is_element_visible(frame):
+        if isinstance(frame, str) and self.is_element_visible(frame):
             try:
                 self.scroll_to(frame, timeout=1)
                 if self.__needs_minimum_wait():
@@ -3769,6 +3797,7 @@ class BaseCase(unittest.TestCase):
         user_data_dir=None,
         extension_zip=None,
         extension_dir=None,
+        disable_features=None,
         binary_location=None,
         driver_version=None,
         page_load_strategy=None,
@@ -3827,6 +3856,7 @@ class BaseCase(unittest.TestCase):
         user_data_dir - Chrome's User Data Directory to use (Chrome-only)
         extension_zip - A Chrome Extension ZIP file to use (Chrome-only)
         extension_dir - A Chrome Extension folder to use (Chrome-only)
+        disable_features - the option to disable features on Chrome/Edge
         binary_location - the path of the browser binary to use (Chromium)
         driver_version - the chromedriver or uc_driver version to force
         page_load_strategy - the option to change pageLoadStrategy (Chrome)
@@ -3952,6 +3982,8 @@ class BaseCase(unittest.TestCase):
             extension_zip = self.extension_zip
         if extension_dir is None:
             extension_dir = self.extension_dir
+        if disable_features is None:
+            disable_features = self.disable_features
         if binary_location is None:
             binary_location = self.binary_location
         if driver_version is None:
@@ -4032,6 +4064,7 @@ class BaseCase(unittest.TestCase):
             user_data_dir=user_data_dir,
             extension_zip=extension_zip,
             extension_dir=extension_dir,
+            disable_features=disable_features,
             binary_location=binary_location,
             driver_version=driver_version,
             page_load_strategy=page_load_strategy,
@@ -6498,7 +6531,7 @@ class BaseCase(unittest.TestCase):
             ):
                 links.append(link)
         if timeout:
-            if not type(timeout) is int and not type(timeout) is float:
+            if not isinstance(timeout, (int, float)):
                 raise Exception('Expecting a numeric value for "timeout"!')
             if timeout < 0:
                 raise Exception('The "timeout" cannot be a negative number!')
@@ -6562,21 +6595,21 @@ class BaseCase(unittest.TestCase):
         """Do type-checking on text. Then return it when valid.
         If the text is acceptable, return the text or str(text).
         If the text is not acceptable, raise a Python Exception."""
-        if type(text) is str:
+        if isinstance(text, str):
             return text
-        elif type(text) is int or type(text) is float:
+        elif isinstance(text, (int, float)):
             return str(text)  # Convert num to string
-        elif type(text) is bool:
+        elif isinstance(text, bool):
             raise Exception("text must be a string! Boolean found!")
         elif type(text).__name__ == "NoneType":
             raise Exception("text must be a string! NoneType found!")
-        elif type(text) is list:
+        elif isinstance(text, list):
             raise Exception("text must be a string! List found!")
-        elif type(text) is tuple:
+        elif isinstance(text, tuple):
             raise Exception("text must be a string! Tuple found!")
-        elif type(text) is set:
+        elif isinstance(text, set):
             raise Exception("text must be a string! Set found!")
-        elif type(text) is dict:
+        elif isinstance(text, dict):
             raise Exception("text must be a string! Dict found!")
         else:
             return str(text)
@@ -6642,7 +6675,12 @@ class BaseCase(unittest.TestCase):
                 try:
                     from pdfminer.high_level import extract_text
                 except Exception:
-                    shared_utils.pip_install("pdfminer.six")
+                    if not sys.version_info >= (3, 8):
+                        shared_utils.pip_install(
+                            "pdfminer.six", version="20221105"
+                        )
+                    else:
+                        shared_utils.pip_install("pdfminer.six")
                     from pdfminer.high_level import extract_text
         if not password:
             password = ""
@@ -6667,12 +6705,12 @@ class BaseCase(unittest.TestCase):
                 raise Exception("%s is not a valid URL or file path!" % pdf)
             file_path = os.path.abspath(pdf)
         page_search = None  # (Pages are delimited by '\x0c')
-        if type(page) is list:
+        if isinstance(page, list):
             pages = page
             page_search = []
             for page in pages:
                 page_search.append(page - 1)
-        elif type(page) is int:
+        elif isinstance(page, int):
             page = page - 1
             if page < 0:
                 page = 0
@@ -6743,7 +6781,7 @@ class BaseCase(unittest.TestCase):
             override=override,
             caching=caching,
         )
-        if type(page) is int:
+        if isinstance(page, int):
             if text not in pdf_text:
                 self.fail(
                     "PDF [%s] is missing expected text [%s] on "
@@ -6817,7 +6855,7 @@ class BaseCase(unittest.TestCase):
                 sele_file_path = [selector, file_path]
                 action = ["chfil", sele_file_path, origin, time_stamp]
                 self.__extra_actions.append(action)
-        if type(abs_path) is int or type(abs_path) is float:
+        if isinstance(abs_path, (int, float)):
             abs_path = str(abs_path)
         try:
             if self.browser == "safari":
@@ -6874,7 +6912,7 @@ class BaseCase(unittest.TestCase):
         with open(image_file_path, "wb") as file:
             file.write(element_png)
         # Add a text overlay if given
-        if type(overlay_text) is str and len(overlay_text) > 0:
+        if isinstance(overlay_text, str) and len(overlay_text) > 0:
             pip_find_lock = fasteners.InterProcessLock(
                 constants.PipInstall.FINDLOCK
             )
@@ -6905,13 +6943,14 @@ class BaseCase(unittest.TestCase):
             image = Image.open(image_file_path)
             draw = ImageDraw.Draw(image)
             draw.rectangle(
-                (0, 0, (max_width * 6) + 6, 16 * len_text_rows),
+                (0, 0, int(max_width * 8.32) + 10, 23 * len_text_rows + 2),
                 fill=(236, 236, 28),
             )
             draw.text(
                 (4, 2),  # Coordinates
                 overlay_text,  # Text
-                (8, 38, 176),  # Color
+                fill=(8, 38, 176),  # Color
+                font_size=18,  # Font Size
             )
             image.save(image_file_path, "PNG", quality=100, optimize=True)
 
@@ -7560,11 +7599,7 @@ class BaseCase(unittest.TestCase):
             self.assert_no_js_errors(exclude=["Uncaught SyntaxError"])
             self.assert_no_js_errors(exclude=["TypeError", "SyntaxE"]) """
         self.__check_scope()
-        if (
-            exclude
-            and not type(exclude) is list
-            and not type(exclude) is tuple
-        ):
+        if exclude and not isinstance(exclude, (list, tuple)):
             exclude = str(exclude).replace(" ", "").split(",")
         time.sleep(0.1)  # May take a moment for errors to appear after loads.
         try:
@@ -8179,7 +8214,7 @@ class BaseCase(unittest.TestCase):
         The maximum allowable default timeout is: 60.0 seconds.
         (Test methods can still override timeouts outside that range.)"""
         self.__check_scope()
-        if not type(timeout) is int and not type(timeout) is float:
+        if not isinstance(timeout, (int, float)):
             raise Exception('Expecting a numeric value for "timeout"!')
         if timeout < 0:
             raise Exception('The "timeout" cannot be a negative number!')
@@ -8739,7 +8774,7 @@ class BaseCase(unittest.TestCase):
         To print without the new-line character end, use: "sys.stdout.write()".
         """
         if hasattr(sb_config, "_multithreaded") and sb_config._multithreaded:
-            if type(msg) is not str:
+            if not isinstance(msg, str):
                 try:
                     msg = str(msg)
                 except Exception:
@@ -8973,7 +9008,7 @@ class BaseCase(unittest.TestCase):
         generation without increasing the bounce rate, you'll want to visit
         at least one additional page on that site with a button click.)"""
         self.__check_scope()
-        if not type(pages) is tuple and not type(pages) is list:
+        if not isinstance(pages, (list, tuple)):
             raise Exception(
                 "Exception: Expecting a list of website pages for chaining!"
             )
@@ -9082,7 +9117,7 @@ class BaseCase(unittest.TestCase):
             timeout = settings.SMALL_TIMEOUT
         if self.timeout_multiplier and timeout == settings.SMALL_TIMEOUT:
             timeout = self.__get_new_timeout(timeout)
-        if type(selector) is list:
+        if isinstance(selector, list):
             self.assert_elements_present(selector, by=by, timeout=timeout)
             return True
         if self.__is_shadow_selector(selector):
@@ -9118,12 +9153,12 @@ class BaseCase(unittest.TestCase):
                 by = kwargs["by"]
             elif kwarg == "selector":
                 selector = kwargs["selector"]
-                if type(selector) is str:
+                if isinstance(selector, str):
                     selectors.append(selector)
-                elif type(selector) is list:
+                elif isinstance(selector, list):
                     selectors_list = selector
                     for selector in selectors_list:
-                        if type(selector) is str:
+                        if isinstance(selector, str):
                             selectors.append(selector)
             else:
                 raise Exception('Unknown kwarg: "%s"!' % kwarg)
@@ -9132,11 +9167,11 @@ class BaseCase(unittest.TestCase):
         if self.timeout_multiplier and timeout == settings.SMALL_TIMEOUT:
             timeout = self.__get_new_timeout(timeout)
         for arg in args:
-            if type(arg) is list:
+            if isinstance(arg, list):
                 for selector in arg:
-                    if type(selector) is str:
+                    if isinstance(selector, str):
                         selectors.append(selector)
-            elif type(arg) is str:
+            elif isinstance(arg, str):
                 selectors.append(arg)
         for selector in selectors:
             if self.__is_shadow_selector(selector):
@@ -9159,7 +9194,7 @@ class BaseCase(unittest.TestCase):
             timeout = settings.SMALL_TIMEOUT
         if self.timeout_multiplier and timeout == settings.SMALL_TIMEOUT:
             timeout = self.__get_new_timeout(timeout)
-        if type(selector) is list:
+        if isinstance(selector, list):
             self.assert_elements(selector, by=by, timeout=timeout)
             return True
         if self.__is_shadow_selector(selector):
@@ -9221,12 +9256,12 @@ class BaseCase(unittest.TestCase):
                 by = kwargs["by"]
             elif kwarg == "selector":
                 selector = kwargs["selector"]
-                if type(selector) is str:
+                if isinstance(selector, str):
                     selectors.append(selector)
-                elif type(selector) is list:
+                elif isinstance(selector, list):
                     selectors_list = selector
                     for selector in selectors_list:
-                        if type(selector) is str:
+                        if isinstance(selector, str):
                             selectors.append(selector)
             else:
                 raise Exception('Unknown kwarg: "%s"!' % kwarg)
@@ -9235,11 +9270,11 @@ class BaseCase(unittest.TestCase):
         if self.timeout_multiplier and timeout == settings.SMALL_TIMEOUT:
             timeout = self.__get_new_timeout(timeout)
         for arg in args:
-            if type(arg) is list:
+            if isinstance(arg, list):
                 for selector in arg:
-                    if type(selector) is str:
+                    if isinstance(selector, str):
                         selectors.append(selector)
-            elif type(arg) is str:
+            elif isinstance(arg, str):
                 selectors.append(arg)
         for selector in selectors:
             if self.__is_shadow_selector(selector):
@@ -11080,7 +11115,7 @@ class BaseCase(unittest.TestCase):
             interval = 0
         if interval == 0 and self.interval:
             interval = float(self.interval)
-        if not type(interval) is int and not type(interval) is float:
+        if not isinstance(interval, (int, float)):
             raise Exception('Expecting a numeric value for "interval"!')
         if interval < 0:
             raise Exception('The "interval" cannot be a negative number!')
@@ -11169,7 +11204,7 @@ class BaseCase(unittest.TestCase):
             interval = 0
         if interval == 0 and self.interval:
             interval = float(self.interval)
-        if not type(interval) is int and not type(interval) is float:
+        if not isinstance(interval, (int, float)):
             raise Exception('Expecting a numeric value for "interval"!')
         if interval < 0:
             raise Exception('The "interval" cannot be a negative number!')
@@ -11748,23 +11783,35 @@ class BaseCase(unittest.TestCase):
             self.create_pie_chart(chart_name=chart_name)
         if not value:
             value = 0
-        if not type(value) is int and not type(value) is float:
+        if not isinstance(value, (int, float)):
             raise Exception('Expecting a numeric value for "value"!')
         if not color:
             color = ""
+        else:
+            color = color.replace("'", "\\'")
         label = label.replace("'", "\\'")
-        color = color.replace("'", "\\'")
-        data_point = """
-            {
-            name: '%s',
-            y: %s,
-            color: '%s'
-            },
-            """ % (
-            label,
-            value,
-            color,
-        )
+        if color:
+            data_point = """
+                {
+                name: '%s',
+                y: %s,
+                color: '%s'
+                },
+                """ % (
+                label,
+                value,
+                color,
+            )
+        else:
+            data_point = """
+                {
+                name: '%s',
+                y: %s,
+                },
+                """ % (
+                label,
+                value,
+            )
         data_point = textwrap.dedent(data_point)
         self._chart_data[chart_name].append(data_point)
         if self._chart_first_series[chart_name]:
@@ -11847,7 +11894,7 @@ class BaseCase(unittest.TestCase):
             interval = 0
         if interval == 0 and self.interval:
             interval = float(self.interval)
-        if not type(interval) is int and not type(interval) is float:
+        if not isinstance(interval, (int, float)):
             raise Exception('Expecting a numeric value for "interval"!')
         if interval < 0:
             raise Exception('The "interval" cannot be a negative number!')
@@ -12613,7 +12660,7 @@ class BaseCase(unittest.TestCase):
                 )
             constants.JqueryConfirm.DEFAULT_COLOR = color.lower()
         if width:
-            if type(width) is int or type(width) is float:
+            if isinstance(width, (int, float)):
                 # Convert to a string if a number is given
                 width = str(width)
             if width.isnumeric():
@@ -12668,30 +12715,24 @@ class BaseCase(unittest.TestCase):
             Width can be set using percent or pixels. Eg: "36.0%", "450px"."""
         from seleniumbase.core import jqc_helper
 
-        if message and type(message) is not str:
+        if message and not isinstance(message, str):
             raise Exception('Expecting a string for arg: "message"!')
-        if not type(buttons) is list and not type(buttons) is tuple:
+        if not isinstance(buttons, (list, tuple)):
             raise Exception('Expecting a list or tuple for arg: "button"!')
         if len(buttons) < 1:
             raise Exception('List "buttons" requires at least one button!')
         new_buttons = []
         for button in buttons:
-            if (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) == 1)
-            ):
+            if isinstance(button, (list, tuple)) and (len(button) == 1):
                 new_buttons.append(button[0])
-            elif (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) > 1)
-            ):
+            elif isinstance(button, (list, tuple)) and (len(button) > 1):
                 new_buttons.append((button[0], str(button[1]).lower()))
             else:
                 new_buttons.append((str(button), ""))
         buttons = new_buttons
         if options:
             for option in options:
-                if not type(option) is list and not type(option) is tuple:
+                if not isinstance(option, (list, tuple)):
                     raise Exception('"options" should be a list of tuples!')
         if self.headless or self.headless2 or self.xvfb:
             return buttons[-1][0]
@@ -12738,18 +12779,12 @@ class BaseCase(unittest.TestCase):
             Width can be set using percent or pixels. Eg: "36.0%", "450px"."""
         from seleniumbase.core import jqc_helper
 
-        if message and type(message) is not str:
+        if message and not isinstance(message, str):
             raise Exception('Expecting a string for arg: "message"!')
         if button:
-            if (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) == 1)
-            ):
+            if isinstance(button, (list, tuple)) and (len(button) == 1):
                 button = (str(button[0]), "")
-            elif (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) > 1)
-            ):
+            elif isinstance(button, (list, tuple)) and (len(button) > 1):
                 valid_colors = [
                     "blue",
                     "default",
@@ -12772,7 +12807,7 @@ class BaseCase(unittest.TestCase):
             button = ("Submit", "blue")
         if options:
             for option in options:
-                if not type(option) is list and not type(option) is tuple:
+                if not isinstance(option, (list, tuple)):
                     raise Exception('"options" should be a list of tuples!')
         if self.headless or self.headless2 or self.xvfb:
             return ""
@@ -12819,30 +12854,24 @@ class BaseCase(unittest.TestCase):
             Width can be set using percent or pixels. Eg: "36.0%", "450px"."""
         from seleniumbase.core import jqc_helper
 
-        if message and type(message) is not str:
+        if message and not isinstance(message, str):
             raise Exception('Expecting a string for arg: "message"!')
-        if not type(buttons) is list and not type(buttons) is tuple:
+        if not isinstance(buttons, (list, tuple)):
             raise Exception('Expecting a list or tuple for arg: "button"!')
         if len(buttons) < 1:
             raise Exception('List "buttons" requires at least one button!')
         new_buttons = []
         for button in buttons:
-            if (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) == 1)
-            ):
+            if isinstance(button, (list, tuple)) and (len(button) == 1):
                 new_buttons.append(button[0])
-            elif (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) > 1)
-            ):
+            elif isinstance(button, (list, tuple)) and (len(button) > 1):
                 new_buttons.append((button[0], str(button[1]).lower()))
             else:
                 new_buttons.append((str(button), ""))
         buttons = new_buttons
         if options:
             for option in options:
-                if not type(option) is list and not type(option) is tuple:
+                if not isinstance(option, (list, tuple)):
                     raise Exception('"options" should be a list of tuples!')
         if self.headless or self.headless2 or self.xvfb:
             return ("", buttons[-1][0])
@@ -14193,7 +14222,7 @@ class BaseCase(unittest.TestCase):
             self.var2 = sb_config.var2
             self.var3 = sb_config.var3
             variables = sb_config.variables
-            if variables and type(variables) is str and len(variables) > 0:
+            if variables and isinstance(variables, str) and len(variables) > 0:
                 import ast
 
                 bad_input = False
@@ -14205,7 +14234,7 @@ class BaseCase(unittest.TestCase):
                 else:
                     try:
                         variables = ast.literal_eval(variables)
-                        if not type(variables) is dict:
+                        if not isinstance(variables, dict):
                             bad_input = True
                     except Exception:
                         bad_input = True
@@ -14214,7 +14243,7 @@ class BaseCase(unittest.TestCase):
                         '\nExpecting a Python dictionary for "variables"!'
                         "\nEg. --variables=\"{'KEY1':'VALUE', 'KEY2':123}\""
                     )
-            elif type(variables) is dict:
+            elif isinstance(variables, dict):
                 pass  # Already processed
             else:
                 variables = {}
@@ -14317,6 +14346,7 @@ class BaseCase(unittest.TestCase):
             self.user_data_dir = sb_config.user_data_dir
             self.extension_zip = sb_config.extension_zip
             self.extension_dir = sb_config.extension_dir
+            self.disable_features = sb_config.disable_features
             self.binary_location = sb_config.binary_location
             self.driver_version = sb_config.driver_version
             self.page_load_strategy = sb_config.page_load_strategy
@@ -14638,6 +14668,7 @@ class BaseCase(unittest.TestCase):
                 user_data_dir=self.user_data_dir,
                 extension_zip=self.extension_zip,
                 extension_dir=self.extension_dir,
+                disable_features=self.disable_features,
                 binary_location=self.binary_location,
                 driver_version=self.driver_version,
                 page_load_strategy=self.page_load_strategy,

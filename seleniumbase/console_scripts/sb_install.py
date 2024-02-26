@@ -50,7 +50,7 @@ IS_WINDOWS = shared_utils.is_windows()
 DRIVER_DIR = os.path.dirname(os.path.realpath(drivers.__file__))
 LOCAL_PATH = "/usr/local/bin/"  # On Mac and Linux systems
 DEFAULT_CHROMEDRIVER_VERSION = "114.0.5735.90"  # (If can't find LATEST_STABLE)
-DEFAULT_GECKODRIVER_VERSION = "v0.33.0"
+DEFAULT_GECKODRIVER_VERSION = "v0.34.0"
 DEFAULT_EDGEDRIVER_VERSION = "115.0.1901.183"  # (If can't find LATEST_STABLE)
 
 
@@ -495,7 +495,7 @@ def main(override=None, intel_for_uc=None, force_uc=None):
                     file_name = "chromedriver-win32.zip"
             plat_arch = file_name.split(".zip")[0]
             download_url = (
-                "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/"
+                "https://storage.googleapis.com/chrome-for-testing-public/"
                 "%s/%s/%s" % (use_version, platform_code, file_name)
             )
         url_request = None

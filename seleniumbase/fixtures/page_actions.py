@@ -1251,26 +1251,40 @@ def wait_for_attribute_not_present(
     timeout_exception(Exception, message)
 
 
-def find_visible_elements(driver, selector, by="css selector"):
+def find_visible_elements(driver, selector, by="css selector", limit=0):
     """
     Finds all WebElements that match a selector and are visible.
-    Similar to webdriver.find_elements.
+    Similar to webdriver.find_elements().
+    If "limit" is set and > 0, will only return that many elements.
     @Params
     driver - the webdriver object (required)
     selector - the locator for identifying the page element (required)
     by - the type of selector being used (Default: "css selector")
+    limit - the maximum number of elements to return if > 0.
     """
     elements = driver.find_elements(by=by, value=selector)
+    if limit and limit > 0 and len(elements) > limit:
+        elements = elements[:limit]
     try:
         v_elems = [element for element in elements if element.is_displayed()]
         return v_elems
     except (StaleElementReferenceException, ElementNotInteractableException):
         time.sleep(0.1)
         elements = driver.find_elements(by=by, value=selector)
+        extra_elements = []
+        if limit and limit > 0 and len(elements) > limit:
+            elements = elements[:limit]
+            extra_elements = elements[limit:]
         v_elems = []
         for element in elements:
             if element.is_displayed():
                 v_elems.append(element)
+        if extra_elements and limit and len(v_elems) < limit:
+            for element in extra_elements:
+                if element.is_displayed():
+                    v_elems.append(element)
+                    if len(v_elems) >= limit:
+                        break
         return v_elems
 
 
@@ -1412,7 +1426,7 @@ def switch_to_frame(driver, frame, timeout=settings.SMALL_TIMEOUT):
             driver.switch_to.frame(frame)
             return True
         except Exception:
-            if type(frame) is str:
+            if isinstance(frame, str):
                 by = None
                 if page_utils.is_xpath_selector(frame):
                     by = "xpath"
@@ -1583,7 +1597,7 @@ def send_keys(
     driver, selector, text, by="css selector", timeout=settings.LARGE_TIMEOUT
 ):
     selector, by = page_utils.recalculate_selector(selector, by)
-    element = wait_for_element_clickable(
+    element = wait_for_element_present(
         driver, selector, by=by, timeout=timeout
     )
     if not text.endswith("\n"):
@@ -1597,7 +1611,7 @@ def press_keys(
     driver, selector, text, by="css selector", timeout=settings.LARGE_TIMEOUT
 ):
     selector, by = page_utils.recalculate_selector(selector, by)
-    element = wait_for_element_clickable(
+    element = wait_for_element_present(
         driver, selector, by=by, timeout=timeout
     )
     if not text.endswith("\n"):
