@@ -138,10 +138,10 @@ def pytest_addoption(parser):
     parser.addoption(
         "--browser-selenium",
         action="store",
-        dest="browser",
+        dest="use_chrome",
         type=str.lower,
         choices=constants.ValidBrowsers.valid_browsers,
-        default=use_chrome,
+        default=constants.Browser.GOOGLE_CHROME,
         help="""Specifies the web browser to use. Default: Chrome.
                 Examples: (--browser=edge OR --browser=firefox)""",
     )
